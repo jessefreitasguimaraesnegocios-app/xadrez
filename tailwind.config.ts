@@ -57,6 +57,25 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        board: {
+          light: "hsl(var(--board-light))",
+          dark: "hsl(var(--board-dark))",
+          highlight: "hsl(var(--board-highlight))",
+          move: "hsl(var(--board-move))",
+        },
+        rank: {
+          gold: "hsl(var(--gold))",
+          silver: "hsl(var(--silver))",
+          bronze: "hsl(var(--bronze))",
+        },
+        bet: {
+          win: "hsl(var(--bet-win))",
+          lose: "hsl(var(--bet-lose))",
+        },
+      },
+      fontFamily: {
+        sans: ['Roboto', 'sans-serif'],
+        display: ['Montserrat', 'sans-serif'],
       },
       borderRadius: {
         lg: "var(--radius)",
