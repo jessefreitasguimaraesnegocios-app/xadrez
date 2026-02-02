@@ -1,4 +1,9 @@
 @tailwind base;
+
+/* Chess square styles */
+.chess-square-last-move {
+  background-color: hsl(var(--accent) / 0.3) !important;
+}
 @tailwind components;
 @tailwind utilities;
 
