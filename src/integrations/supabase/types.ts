@@ -14,7 +14,326 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      friendships: {
+        Row: {
+          created_at: string
+          friend_id: string
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          friend_id: string
+          id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          friend_id?: string
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "friendships_friend_id_fkey"
+            columns: ["friend_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "friendships_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      game_messages: {
+        Row: {
+          content: string
+          created_at: string
+          game_id: string
+          id: string
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          game_id: string
+          id?: string
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          game_id?: string
+          id?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_messages_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      games: {
+        Row: {
+          bet_amount: number | null
+          black_player_id: string | null
+          black_remaining_time: number | null
+          created_at: string
+          ended_at: string | null
+          fen_position: string | null
+          id: string
+          move_history: Json
+          result: string | null
+          started_at: string | null
+          status: string
+          time_control: string
+          white_player_id: string | null
+          white_remaining_time: number | null
+        }
+        Insert: {
+          bet_amount?: number | null
+          black_player_id?: string | null
+          black_remaining_time?: number | null
+          created_at?: string
+          ended_at?: string | null
+          fen_position?: string | null
+          id?: string
+          move_history?: Json
+          result?: string | null
+          started_at?: string | null
+          status?: string
+          time_control?: string
+          white_player_id?: string | null
+          white_remaining_time?: number | null
+        }
+        Update: {
+          bet_amount?: number | null
+          black_player_id?: string | null
+          black_remaining_time?: number | null
+          created_at?: string
+          ended_at?: string | null
+          fen_position?: string | null
+          id?: string
+          move_history?: Json
+          result?: string | null
+          started_at?: string | null
+          status?: string
+          time_control?: string
+          white_player_id?: string | null
+          white_remaining_time?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "games_black_player_id_fkey"
+            columns: ["black_player_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "games_white_player_id_fkey"
+            columns: ["white_player_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      matchmaking_queue: {
+        Row: {
+          bet_amount: number | null
+          elo_rating: number
+          id: string
+          joined_at: string
+          time_control: string
+          user_id: string
+        }
+        Insert: {
+          bet_amount?: number | null
+          elo_rating: number
+          id?: string
+          joined_at?: string
+          time_control?: string
+          user_id: string
+        }
+        Update: {
+          bet_amount?: number | null
+          elo_rating?: number
+          id?: string
+          joined_at?: string
+          time_control?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matchmaking_queue_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          display_name: string | null
+          draws: number
+          elo_rating: number
+          id: string
+          is_online: boolean
+          last_seen: string | null
+          losses: number
+          total_bet_amount: number
+          total_winnings: number
+          updated_at: string
+          user_id: string
+          username: string
+          wins: number
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          draws?: number
+          elo_rating?: number
+          id?: string
+          is_online?: boolean
+          last_seen?: string | null
+          losses?: number
+          total_bet_amount?: number
+          total_winnings?: number
+          updated_at?: string
+          user_id: string
+          username: string
+          wins?: number
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          draws?: number
+          elo_rating?: number
+          id?: string
+          is_online?: boolean
+          last_seen?: string | null
+          losses?: number
+          total_bet_amount?: number
+          total_winnings?: number
+          updated_at?: string
+          user_id?: string
+          username?: string
+          wins?: number
+        }
+        Relationships: []
+      }
+      tournament_participants: {
+        Row: {
+          id: string
+          joined_at: string
+          rank: number | null
+          score: number
+          tournament_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          rank?: number | null
+          score?: number
+          tournament_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          rank?: number | null
+          score?: number
+          tournament_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_participants_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_participants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      tournaments: {
+        Row: {
+          created_at: string
+          description: string | null
+          entry_fee: number | null
+          format: string
+          id: string
+          max_participants: number
+          name: string
+          prize_pool: number | null
+          starts_at: string
+          status: string
+          time_control: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          entry_fee?: number | null
+          format?: string
+          id?: string
+          max_participants?: number
+          name: string
+          prize_pool?: number | null
+          starts_at: string
+          status?: string
+          time_control?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          entry_fee?: number | null
+          format?: string
+          id?: string
+          max_participants?: number
+          name?: string
+          prize_pool?: number | null
+          starts_at?: string
+          status?: string
+          time_control?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

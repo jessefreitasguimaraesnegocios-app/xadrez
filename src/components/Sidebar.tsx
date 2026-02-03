@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Swords,
@@ -10,6 +12,7 @@ import {
   Settings,
   LogOut,
   Crown,
+  LogIn,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -26,6 +29,14 @@ const menuItems = [
 ];
 
 const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
+  const { user, profile, signOut, loading } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
   return (
     <div className="w-64 h-screen bg-sidebar border-r border-sidebar-border flex flex-col">
       {/* Logo */}
@@ -43,17 +54,38 @@ const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
 
       {/* User Profile */}
       <div className="p-4 border-b border-sidebar-border">
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-sidebar-accent">
-          <Avatar className="w-10 h-10 ring-2 ring-primary">
-            <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-              JD
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-sm truncate">João Silva</p>
-            <p className="text-xs text-sidebar-foreground/60">1850 ELO • #127</p>
+        {loading ? (
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-sidebar-accent">
+            <div className="w-10 h-10 rounded-full bg-muted animate-pulse" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 bg-muted rounded animate-pulse" />
+              <div className="h-3 bg-muted rounded w-2/3 animate-pulse" />
+            </div>
           </div>
-        </div>
+        ) : user && profile ? (
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-sidebar-accent">
+            <Avatar className="w-10 h-10 ring-2 ring-primary">
+              <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+                {profile.username.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm truncate">{profile.display_name || profile.username}</p>
+              <p className="text-xs text-sidebar-foreground/60">
+                {profile.elo_rating} ELO • {profile.wins}V/{profile.losses}D
+              </p>
+            </div>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            className="w-full gap-2"
+            onClick={() => navigate('/auth')}
+          >
+            <LogIn className="w-4 h-4" />
+            Entrar / Criar Conta
+          </Button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -85,13 +117,16 @@ const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
           <Settings className="w-5 h-5" />
           Configurações
         </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 text-destructive hover:bg-destructive/10"
-        >
-          <LogOut className="w-5 h-5" />
-          Sair
-        </Button>
+        {user && (
+          <Button
+            variant="ghost"
+            onClick={handleSignOut}
+            className="w-full justify-start gap-3 text-destructive hover:bg-destructive/10"
+          >
+            <LogOut className="w-5 h-5" />
+            Sair
+          </Button>
+        )}
       </div>
     </div>
   );
