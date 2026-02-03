@@ -1,16 +1,20 @@
 import { useState } from "react";
 import ChessBoard from "./ChessBoard";
 import BettingPanel from "./BettingPanel";
+import GameChat from "./GameChat";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Clock, Flag, MessageCircle, RotateCcw } from "lucide-react";
+import { Clock, Flag, RotateCcw } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface GameViewProps {
   withBetting?: boolean;
+  gameId?: string | null;
 }
 
-const GameView = ({ withBetting = false }: GameViewProps) => {
+const GameView = ({ withBetting = false, gameId = null }: GameViewProps) => {
+  const { profile } = useAuth();
   const [showBetting, setShowBetting] = useState(withBetting);
 
   return (
@@ -25,7 +29,7 @@ const GameView = ({ withBetting = false }: GameViewProps) => {
                 <AvatarFallback className="bg-muted text-muted-foreground">OP</AvatarFallback>
               </Avatar>
               <div>
-                <p className="font-medium">Oponente123</p>
+                <p className="font-medium">Oponente</p>
                 <p className="text-sm text-muted-foreground">1920 ELO</p>
               </div>
             </div>
@@ -46,11 +50,13 @@ const GameView = ({ withBetting = false }: GameViewProps) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10 ring-2 ring-primary">
-                <AvatarFallback className="bg-primary text-primary-foreground">JS</AvatarFallback>
+                <AvatarFallback className="bg-primary text-primary-foreground">
+                  {profile?.username?.slice(0, 2).toUpperCase() || 'VC'}
+                </AvatarFallback>
               </Avatar>
               <div>
-                <p className="font-medium">João Silva</p>
-                <p className="text-sm text-muted-foreground">1850 ELO</p>
+                <p className="font-medium">{profile?.display_name || profile?.username || 'Você'}</p>
+                <p className="text-sm text-muted-foreground">{profile?.elo_rating || 1200} ELO</p>
               </div>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-mono text-xl">
@@ -70,10 +76,6 @@ const GameView = ({ withBetting = false }: GameViewProps) => {
             <Flag className="w-4 h-4" />
             Desistir
           </Button>
-          <Button variant="outline" className="gap-2">
-            <MessageCircle className="w-4 h-4" />
-            Chat
-          </Button>
         </div>
       </div>
 
@@ -81,15 +83,18 @@ const GameView = ({ withBetting = false }: GameViewProps) => {
       {showBetting && (
         <div className="lg:w-[360px]">
           <BettingPanel
-            playerName="João Silva"
-            playerRating={1850}
-            opponentName="Oponente123"
+            playerName={profile?.display_name || profile?.username || 'Você'}
+            playerRating={profile?.elo_rating || 1200}
+            opponentName="Oponente"
             opponentRating={1920}
             minBet={10}
             maxBet={500}
           />
         </div>
       )}
+
+      {/* Game Chat */}
+      <GameChat gameId={gameId} />
     </div>
   );
 };

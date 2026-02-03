@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/Sidebar";
 import GameStats from "@/components/GameStats";
 import RankingList from "@/components/RankingList";
@@ -11,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Index = () => {
+  const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -27,7 +29,9 @@ const Index = () => {
         {activeTab === "dashboard" && (
           <div className="space-y-6 max-w-7xl mx-auto">
             <div>
-              <h1 className="font-display font-bold text-3xl mb-2">Bem-vindo de volta, João!</h1>
+              <h1 className="font-display font-bold text-3xl mb-2">
+                Bem-vindo{profile ? `, ${profile.display_name || profile.username}` : ''}!
+              </h1>
               <p className="text-muted-foreground">Pronto para uma partida?</p>
             </div>
 
