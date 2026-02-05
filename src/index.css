@@ -1,0 +1,160 @@
+@tailwind base;
+
+/* Chess square styles */
+.chess-square-last-move {
+  background-color: hsl(var(--accent) / 0.3) !important;
+}
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 220 20% 10%;
+    --foreground: 45 20% 95%;
+
+    --card: 220 18% 14%;
+    --card-foreground: 45 20% 95%;
+
+    --popover: 220 18% 12%;
+    --popover-foreground: 45 20% 95%;
+
+    --primary: 142 50% 35%;
+    --primary-foreground: 45 20% 95%;
+
+    --secondary: 220 15% 20%;
+    --secondary-foreground: 45 20% 90%;
+
+    --muted: 220 15% 18%;
+    --muted-foreground: 220 10% 55%;
+
+    --accent: 45 80% 50%;
+    --accent-foreground: 220 20% 10%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 45 20% 95%;
+
+    --border: 220 15% 22%;
+    --input: 220 15% 22%;
+    --ring: 142 50% 35%;
+
+    --radius: 0.75rem;
+
+    /* Chess-specific colors */
+    --board-light: 35 40% 75%;
+    --board-dark: 142 35% 28%;
+    --board-highlight: 45 90% 55%;
+    --board-move: 142 60% 45%;
+    
+    /* Rankings */
+    --gold: 45 90% 55%;
+    --silver: 220 10% 70%;
+    --bronze: 25 60% 45%;
+
+    /* Betting */
+    --bet-win: 142 60% 45%;
+    --bet-lose: 0 70% 50%;
+
+    --sidebar-background: 220 18% 12%;
+    --sidebar-foreground: 45 20% 90%;
+    --sidebar-primary: 142 50% 35%;
+    --sidebar-primary-foreground: 45 20% 95%;
+    --sidebar-accent: 220 15% 18%;
+    --sidebar-accent-foreground: 45 20% 90%;
+    --sidebar-border: 220 15% 22%;
+    --sidebar-ring: 142 50% 35%;
+  }
+
+  .dark {
+    --background: 220 20% 10%;
+    --foreground: 45 20% 95%;
+
+    --card: 220 18% 14%;
+    --card-foreground: 45 20% 95%;
+
+    --popover: 220 18% 12%;
+    --popover-foreground: 45 20% 95%;
+
+    --primary: 142 50% 35%;
+    --primary-foreground: 45 20% 95%;
+
+    --secondary: 220 15% 20%;
+    --secondary-foreground: 45 20% 90%;
+
+    --muted: 220 15% 18%;
+    --muted-foreground: 220 10% 55%;
+
+    --accent: 45 80% 50%;
+    --accent-foreground: 220 20% 10%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 45 20% 95%;
+
+    --border: 220 15% 22%;
+    --input: 220 15% 22%;
+    --ring: 142 50% 35%;
+
+    --sidebar-background: 220 18% 12%;
+    --sidebar-foreground: 45 20% 90%;
+    --sidebar-primary: 142 50% 35%;
+    --sidebar-primary-foreground: 45 20% 95%;
+    --sidebar-accent: 220 15% 18%;
+    --sidebar-accent-foreground: 45 20% 90%;
+    --sidebar-border: 220 15% 22%;
+    --sidebar-ring: 142 50% 35%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Roboto', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Montserrat', sans-serif;
+  }
+}
+
+@layer components {
+  .chess-square-light {
+    @apply bg-[hsl(var(--board-light))];
+  }
+
+  .chess-square-dark {
+    @apply bg-[hsl(var(--board-dark))];
+  }
+
+  .chess-square-highlight {
+    @apply bg-[hsl(var(--board-highlight)/0.6)];
+  }
+
+  .chess-square-move {
+    @apply bg-[hsl(var(--board-move)/0.5)];
+  }
+
+  .rank-gold {
+    @apply text-[hsl(var(--gold))];
+  }
+
+  .rank-silver {
+    @apply text-[hsl(var(--silver))];
+  }
+
+  .rank-bronze {
+    @apply text-[hsl(var(--bronze))];
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 20px hsl(var(--accent) / 0.3);
+  }
+}
