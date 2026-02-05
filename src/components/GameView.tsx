@@ -2,20 +2,42 @@ import { useState } from "react";
 import ChessBoard from "./ChessBoard";
 import BettingPanel from "./BettingPanel";
 import GameChat from "./GameChat";
+import GameTimer from "./GameTimer";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Clock, Flag, RotateCcw } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Flag, RotateCcw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 interface GameViewProps {
   withBetting?: boolean;
   gameId?: string | null;
+  timeControl?: number; // in seconds (e.g., 600 for 10 minutes)
 }
 
-const GameView = ({ withBetting = false, gameId = null }: GameViewProps) => {
+const GameView = ({ withBetting = false, gameId = null, timeControl = 600 }: GameViewProps) => {
   const { profile } = useAuth();
+  const { toast } = useToast();
   const [showBetting, setShowBetting] = useState(withBetting);
+  const [isPlayerTurn, setIsPlayerTurn] = useState(true);
+  const [playerTime, setPlayerTime] = useState(timeControl);
+  const [opponentTime, setOpponentTime] = useState(timeControl);
+
+  const handlePlayerTimeUp = () => {
+    toast({
+      variant: 'destructive',
+      title: 'Tempo esgotado!',
+      description: 'Você perdeu por tempo.',
+    });
+  };
+
+  const handleOpponentTimeUp = () => {
+    toast({
+      title: 'Vitória!',
+      description: 'Seu oponente perdeu por tempo.',
+    });
+  };
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
@@ -33,10 +55,12 @@ const GameView = ({ withBetting = false, gameId = null }: GameViewProps) => {
                 <p className="text-sm text-muted-foreground">1920 ELO</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary font-mono text-xl">
-              <Clock className="w-5 h-5" />
-              <span>10:00</span>
-            </div>
+            <GameTimer
+              initialTime={opponentTime}
+              isActive={!isPlayerTurn}
+              isPlayer={false}
+              onTimeUp={handleOpponentTimeUp}
+            />
           </div>
         </Card>
 
@@ -50,6 +74,7 @@ const GameView = ({ withBetting = false, gameId = null }: GameViewProps) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10 ring-2 ring-primary">
+                <AvatarImage src={profile?.avatar_url || undefined} />
                 <AvatarFallback className="bg-primary text-primary-foreground">
                   {profile?.username?.slice(0, 2).toUpperCase() || 'VC'}
                 </AvatarFallback>
@@ -59,10 +84,12 @@ const GameView = ({ withBetting = false, gameId = null }: GameViewProps) => {
                 <p className="text-sm text-muted-foreground">{profile?.elo_rating || 1200} ELO</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-mono text-xl">
-              <Clock className="w-5 h-5" />
-              <span>10:00</span>
-            </div>
+            <GameTimer
+              initialTime={playerTime}
+              isActive={isPlayerTurn}
+              isPlayer={true}
+              onTimeUp={handlePlayerTimeUp}
+            />
           </div>
         </Card>
 

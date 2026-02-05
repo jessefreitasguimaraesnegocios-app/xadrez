@@ -113,13 +113,15 @@ const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
 
       {/* Bottom Actions */}
       <div className="p-4 border-t border-sidebar-border space-y-1">
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent"
-        >
-          <Settings className="w-5 h-5" />
-          Configurações
-        </Button>
+        <Link to="/settings">
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <Settings className="w-5 h-5" />
+            Configurações
+          </Button>
+        </Link>
         {user && (
           <Button
             variant="ghost"
