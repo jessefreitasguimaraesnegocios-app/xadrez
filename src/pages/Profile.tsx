@@ -267,7 +267,7 @@ const Profile = () => {
                   <span className="text-sm text-muted-foreground">Ganhos Totais</span>
                 </div>
                 <p className="text-2xl font-display font-bold text-accent">
-                R$ {((profile as any)?.total_winnings || 0).toFixed(2)}
+                R$ {(profile?.total_winnings || 0).toFixed(2)}
                 </p>
               </div>
             </div>
