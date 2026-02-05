@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   LayoutDashboard,
   Swords,
@@ -63,19 +63,22 @@ const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
             </div>
           </div>
         ) : user && profile ? (
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-sidebar-accent">
-            <Avatar className="w-10 h-10 ring-2 ring-primary">
-              <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-                {profile.username.slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm truncate">{profile.display_name || profile.username}</p>
-              <p className="text-xs text-sidebar-foreground/60">
-                {profile.elo_rating} ELO • {profile.wins}V/{profile.losses}D
-              </p>
+          <Link to="/profile" className="block">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors cursor-pointer">
+              <Avatar className="w-10 h-10 ring-2 ring-primary">
+                <AvatarImage src={profile.avatar_url || undefined} />
+                <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+                  {profile.username.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm truncate">{profile.display_name || profile.username}</p>
+                <p className="text-xs text-sidebar-foreground/60">
+                  {profile.elo_rating} ELO • {profile.wins}V/{profile.losses}D
+                </p>
+              </div>
             </div>
-          </div>
+          </Link>
         ) : (
           <Button
             variant="outline"
