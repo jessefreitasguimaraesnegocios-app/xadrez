@@ -15,6 +15,8 @@ interface Profile {
   losses: number;
   draws: number;
   is_online: boolean;
+  total_winnings: number;
+  total_bet_amount: number;
 }
 
 interface AuthContextType {

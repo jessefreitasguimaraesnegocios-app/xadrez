@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Crown, Mail, Lock, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import GoogleSignInButton from '@/components/auth/GoogleSignInButton';
 
 const Auth = () => {
   const { user, loading, signIn, signUp } = useAuth();
@@ -162,6 +163,17 @@ const Auth = () => {
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? 'Entrando...' : 'Entrar'}
                   </Button>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">ou</span>
+                    </div>
+                  </div>
+
+                  <GoogleSignInButton className="w-full" />
                 </form>
               </TabsContent>
 
@@ -237,6 +249,17 @@ const Auth = () => {
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? 'Criando conta...' : 'Criar Conta'}
                   </Button>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">ou</span>
+                    </div>
+                  </div>
+
+                  <GoogleSignInButton className="w-full" />
                 </form>
               </TabsContent>
             </CardContent>
