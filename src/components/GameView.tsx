@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import ChessBoard from "./ChessBoard";
 import BettingPanel from "./BettingPanel";
 import GameChat from "./GameChat";
@@ -6,41 +6,157 @@ import GameTimer from "./GameTimer";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Flag, RotateCcw } from "lucide-react";
+import { Flag, RotateCcw, Bot, Maximize2, Minimize2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import type { BotDifficulty } from "@/lib/chess";
+import { cn } from "@/lib/utils";
+
+const BOT_LABELS: Record<BotDifficulty, string> = {
+  easy: "Fácil",
+  normal: "Normal",
+  hard: "Difícil",
+  very_hard: "Muito difícil",
+  impossible: "Impossível",
+};
 
 interface GameViewProps {
   withBetting?: boolean;
   gameId?: string | null;
   timeControl?: number; // in seconds (e.g., 600 for 10 minutes)
+  isBotGame?: boolean;
+  botDifficulty?: BotDifficulty | null;
 }
 
-const GameView = ({ withBetting = false, gameId = null, timeControl = 600 }: GameViewProps) => {
+const GameView = ({
+  withBetting = false,
+  gameId = null,
+  timeControl = 600,
+  isBotGame = false,
+  botDifficulty = null,
+}: GameViewProps) => {
   const { profile } = useAuth();
   const { toast } = useToast();
-  const [showBetting, setShowBetting] = useState(withBetting);
+  const [showBetting, setShowBetting] = useState(withBetting && !isBotGame);
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [playerTime, setPlayerTime] = useState(timeControl);
   const [opponentTime, setOpponentTime] = useState(timeControl);
+  const [timerResetKey, setTimerResetKey] = useState(0);
+  const [hasClockStarted, setHasClockStarted] = useState(false);
+  const [preGameCountdown, setPreGameCountdown] = useState(30);
+  const preGameTimeUpFired = useRef(false);
+  const opponentLabel = isBotGame && botDifficulty
+    ? `Bot (${BOT_LABELS[botDifficulty]})`
+    : "Oponente";
 
-  const handlePlayerTimeUp = () => {
+  const handlePlayerTimeUp = useCallback(() => {
+    if (isGameOver) return;
+    setIsGameOver(true);
     toast({
       variant: 'destructive',
       title: 'Tempo esgotado!',
       description: 'Você perdeu por tempo.',
     });
-  };
+  }, [isGameOver]);
 
-  const handleOpponentTimeUp = () => {
+  const handleOpponentTimeUp = useCallback(() => {
+    if (isGameOver) return;
+    setIsGameOver(true);
     toast({
       title: 'Vitória!',
       description: 'Seu oponente perdeu por tempo.',
     });
-  };
+  }, [isGameOver]);
+
+  const handleResign = useCallback(() => {
+    if (isGameOver) return;
+    setIsGameOver(true);
+    toast({
+      variant: "destructive",
+      title: "Desistência",
+      description: "Você desistiu. Vitória das pretas.",
+    });
+  }, [isGameOver]);
+
+  const handleOfferDraw = useCallback(() => {
+    if (isGameOver) return;
+    setIsGameOver(true);
+    toast({
+      title: "Empate",
+      description: "Empate aceito. Partida encerrada.",
+    });
+  }, [isGameOver]);
+
+  const handleTurnChange = useCallback((turn: "white" | "black") => {
+    setIsPlayerTurn(turn === "white");
+  }, []);
+
+  const handleFirstMove = useCallback(() => {
+    setHasClockStarted(true);
+  }, []);
+
+  const handleNewGame = useCallback(() => {
+    preGameTimeUpFired.current = false;
+    setIsGameOver(false);
+    setIsPlayerTurn(true);
+    setPlayerTime(timeControl);
+    setOpponentTime(timeControl);
+    setTimerResetKey((k) => k + 1);
+    setHasClockStarted(false);
+    setPreGameCountdown(30);
+  }, [timeControl]);
+
+  useEffect(() => {
+    preGameTimeUpFired.current = false;
+    setIsGameOver(false);
+    setIsPlayerTurn(true);
+    setHasClockStarted(false);
+    setPreGameCountdown(30);
+  }, [isBotGame, botDifficulty]);
+
+  // Pre-game: 30s to make first move; if time runs out, cancel game
+  useEffect(() => {
+    if (hasClockStarted || isGameOver) return;
+    const interval = setInterval(() => {
+      setPreGameCountdown((prev) => {
+        if (prev <= 1) {
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [hasClockStarted, isGameOver]);
+
+  useEffect(() => {
+    if (hasClockStarted || isGameOver || preGameCountdown > 0) return;
+    if (preGameTimeUpFired.current) return;
+    preGameTimeUpFired.current = true;
+    setIsGameOver(true);
+    toast({
+      variant: "destructive",
+      title: "Partida cancelada",
+      description: "Você não fez a primeira jogada a tempo (30s).",
+    });
+  }, [hasClockStarted, isGameOver, preGameCountdown, toast]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullscreen) setIsFullscreen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isFullscreen]);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
+    <div
+      className={cn(
+        "flex flex-col lg:flex-row gap-6",
+        isFullscreen && "fixed inset-0 z-50 bg-background p-4 overflow-auto"
+      )}
+    >
       {/* Main Game Area */}
       <div className="flex-1 space-y-4">
         {/* Opponent Info */}
@@ -48,16 +164,23 @@ const GameView = ({ withBetting = false, gameId = null, timeControl = 600 }: Gam
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10">
-                <AvatarFallback className="bg-muted text-muted-foreground">OP</AvatarFallback>
+                {isBotGame ? (
+                  <AvatarFallback className="bg-muted text-muted-foreground">
+                    <Bot className="w-5 h-5" />
+                  </AvatarFallback>
+                ) : (
+                  <AvatarFallback className="bg-muted text-muted-foreground">OP</AvatarFallback>
+                )}
               </Avatar>
               <div>
-                <p className="font-medium">Oponente</p>
-                <p className="text-sm text-muted-foreground">1920 ELO</p>
+                <p className="font-medium">{opponentLabel}</p>
+                <p className="text-sm text-muted-foreground">{isBotGame ? "Jogador virtual" : "1920 ELO"}</p>
               </div>
             </div>
             <GameTimer
+              key={`opponent-timer-${timerResetKey}`}
               initialTime={opponentTime}
-              isActive={!isPlayerTurn}
+              isActive={hasClockStarted && !isGameOver && !isPlayerTurn}
               isPlayer={false}
               onTimeUp={handleOpponentTimeUp}
             />
@@ -65,8 +188,16 @@ const GameView = ({ withBetting = false, gameId = null, timeControl = 600 }: Gam
         </Card>
 
         {/* Chess Board */}
-        <div className="flex justify-center py-4">
-          <ChessBoard size="lg" />
+        <div className={cn("flex justify-center py-4", isFullscreen && "flex-1 items-center")}>
+          <ChessBoard
+            size={isFullscreen ? "xl" : "lg"}
+            botDifficulty={botDifficulty}
+            onTurnChange={handleTurnChange}
+            onGameOver={() => setIsGameOver(true)}
+            onNewGame={handleNewGame}
+            onFirstMove={handleFirstMove}
+            disabled={isGameOver}
+          />
         </div>
 
         {/* Player Info */}
@@ -84,22 +215,57 @@ const GameView = ({ withBetting = false, gameId = null, timeControl = 600 }: Gam
                 <p className="text-sm text-muted-foreground">{profile?.elo_rating || 1200} ELO</p>
               </div>
             </div>
-            <GameTimer
-              initialTime={playerTime}
-              isActive={isPlayerTurn}
-              isPlayer={true}
-              onTimeUp={handlePlayerTimeUp}
-            />
+            {hasClockStarted ? (
+              <GameTimer
+                key={`player-timer-${timerResetKey}`}
+                initialTime={playerTime}
+                isActive={!isGameOver && isPlayerTurn}
+                isPlayer={true}
+                onTimeUp={handlePlayerTimeUp}
+              />
+            ) : (
+              <div
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-xl transition-all duration-300 ring-2 ring-primary",
+                  preGameCountdown <= 10 && "bg-destructive text-destructive-foreground animate-pulse",
+                  preGameCountdown > 10 && "bg-secondary text-secondary-foreground"
+                )}
+                title="Faça sua primeira jogada em 30 segundos"
+              >
+                <span className="text-sm font-sans font-normal mr-1">1ª jogada:</span>
+                {String(Math.floor(preGameCountdown / 60)).padStart(2, "0")}:
+                {String(preGameCountdown % 60).padStart(2, "0")}
+              </div>
+            )}
           </div>
         </Card>
 
         {/* Game Controls */}
-        <div className="flex gap-2">
-          <Button variant="secondary" className="flex-1 gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0"
+            onClick={() => setIsFullscreen((v) => !v)}
+            title={isFullscreen ? "Sair da tela cheia (Esc)" : "Tela cheia"}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </Button>
+          <Button
+            variant="secondary"
+            className="flex-1 gap-2 min-w-[140px]"
+            onClick={handleOfferDraw}
+            disabled={isGameOver}
+          >
             <RotateCcw className="w-4 h-4" />
             Propor Empate
           </Button>
-          <Button variant="destructive" className="flex-1 gap-2">
+          <Button
+            variant="destructive"
+            className="flex-1 gap-2 min-w-[140px]"
+            onClick={handleResign}
+            disabled={isGameOver}
+          >
             <Flag className="w-4 h-4" />
             Desistir
           </Button>

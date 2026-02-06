@@ -5,20 +5,44 @@ import GameStats from "@/components/GameStats";
 import RankingList from "@/components/RankingList";
 import FriendsList from "@/components/FriendsList";
 import QuickPlay from "@/components/QuickPlay";
+import PlayVsBot from "@/components/PlayVsBot";
 import TournamentList from "@/components/TournamentList";
 import GameView from "@/components/GameView";
 import BettingPanel from "@/components/BettingPanel";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft } from "lucide-react";
+import type { BotDifficulty } from "@/lib/chess";
 
 const Index = () => {
   const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBotGame, setIsBotGame] = useState(false);
+  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty | null>(null);
+  const [gameKey, setGameKey] = useState(0);
 
   const handleStartGame = () => {
+    setIsBotGame(false);
+    setBotDifficulty(null);
+    setGameKey((k) => k + 1);
     setIsPlaying(true);
     setActiveTab("play");
+  };
+
+  const handleStartBotGame = (difficulty: BotDifficulty) => {
+    setIsBotGame(true);
+    setBotDifficulty(difficulty);
+    setGameKey((k) => k + 1);
+    setIsPlaying(true);
+    setActiveTab("play");
+  };
+
+  const handleExitBotGame = () => {
+    setIsPlaying(false);
+    setIsBotGame(false);
+    setBotDifficulty(null);
   };
 
   return (
@@ -86,12 +110,28 @@ const Index = () => {
             </div>
             
             {isPlaying ? (
-              <GameView withBetting={true} />
+              <div className="space-y-4">
+                {isBotGame && (
+                  <Button variant="outline" size="sm" onClick={handleExitBotGame} className="gap-2">
+                    <ArrowLeft className="w-4 h-4" />
+                    Voltar ao menu
+                  </Button>
+                )}
+                <GameView
+                  key={gameKey}
+                  withBetting={!isBotGame}
+                  isBotGame={isBotGame}
+                  botDifficulty={botDifficulty}
+                />
+              </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
+                <div className="lg:col-span-2 space-y-6">
                   <Card className="p-6 bg-card border-border">
                     <QuickPlay onStartGame={handleStartGame} />
+                  </Card>
+                  <Card className="p-6 bg-card border-border">
+                    <PlayVsBot onStartGame={handleStartBotGame} />
                   </Card>
                 </div>
                 <Card className="p-6 bg-card border-border">

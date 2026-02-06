@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Clock, AlertTriangle } from 'lucide-react';
 
@@ -12,21 +12,27 @@ interface GameTimerProps {
 
 const GameTimer = ({ initialTime, isActive, isPlayer, onTimeUp, className }: GameTimerProps) => {
   const [timeLeft, setTimeLeft] = useState(initialTime);
-  
-  // Reset timer when initialTime changes
+  const onTimeUpRef = useRef(onTimeUp);
+  const initialTimeRef = useRef(initialTime);
+  onTimeUpRef.current = onTimeUp;
+
+  // Reset timer only when initialTime actually changes (e.g. new game)
   useEffect(() => {
-    setTimeLeft(initialTime);
+    if (initialTimeRef.current !== initialTime) {
+      initialTimeRef.current = initialTime;
+      setTimeLeft(initialTime);
+    }
   }, [initialTime]);
 
   useEffect(() => {
-    if (!isActive || timeLeft <= 0) return;
+    if (!isActive) return;
 
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
+        if (prev <= 0) return 0;
         const newTime = prev - 1;
         if (newTime <= 0) {
-          clearInterval(interval);
-          onTimeUp?.();
+          onTimeUpRef.current?.();
           return 0;
         }
         return newTime;
@@ -34,7 +40,7 @@ const GameTimer = ({ initialTime, isActive, isPlayer, onTimeUp, className }: Gam
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isActive, timeLeft, onTimeUp]);
+  }, [isActive]);
 
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);

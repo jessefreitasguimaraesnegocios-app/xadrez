@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWallet } from "@/hooks/useWallet";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getEdgeFunctionAuthHeaders } from "@/lib/edgeFunctionAuth";
 import Sidebar from "@/components/Sidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,8 +70,19 @@ const Wallet = () => {
     setDepositLoading(true);
     setDepositResult(null);
     try {
+      const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
+      if (sessionError || !session?.access_token) {
+        toast({
+          variant: "destructive",
+          title: "Sessão inválida",
+          description: "Faça login novamente para continuar.",
+        });
+        setDepositLoading(false);
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("create-pix-deposit", {
         body: { amount },
+        headers: getEdgeFunctionAuthHeaders(session),
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -127,8 +139,19 @@ const Wallet = () => {
     }
     setWithdrawLoading(true);
     try {
+      const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
+      if (sessionError || !session?.access_token) {
+        toast({
+          variant: "destructive",
+          title: "Sessão inválida",
+          description: "Faça login novamente para continuar.",
+        });
+        setWithdrawLoading(false);
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("request-withdrawal", {
         body: { amount, pixKey: pixKey.trim(), pixKeyType },
+        headers: getEdgeFunctionAuthHeaders(session),
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);

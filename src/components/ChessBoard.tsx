@@ -1,16 +1,24 @@
 import { cn } from "@/lib/utils";
-import { useChessGame, pieceSymbols, Square } from "@/lib/chess";
+import { useChessGame, pieceSymbols, Square, type BotDifficulty } from "@/lib/chess";
 import PromotionDialog from "./PromotionDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RotateCcw } from "lucide-react";
 
 interface ChessBoardProps {
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   showControls?: boolean;
+  botDifficulty?: BotDifficulty | null;
+  onTurnChange?: (turn: "white" | "black") => void;
+  onGameOver?: () => void;
+  onNewGame?: () => void;
+  /** Called once when the first move (white) is played. */
+  onFirstMove?: () => void;
+  /** When true, board does not accept moves (e.g. after resign/draw/time up). */
+  disabled?: boolean;
 }
 
-const ChessBoard = ({ size = "md", showControls = true }: ChessBoardProps) => {
+const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, onTurnChange, onGameOver, onNewGame, onFirstMove, disabled = false }: ChessBoardProps) => {
   const {
     gameState,
     selectedSquare,
@@ -20,22 +28,31 @@ const ChessBoard = ({ size = "md", showControls = true }: ChessBoardProps) => {
     handlePromotion,
     cancelPromotion,
     resetGame,
-  } = useChessGame();
+  } = useChessGame({ botDifficulty, onTurnChange, onGameOver, onFirstMove });
+
+  const handleNewGame = () => {
+    resetGame();
+    onNewGame?.();
+  };
 
   const sizeClasses = {
-    sm: "w-64 h-64",
-    md: "w-[400px] h-[400px]",
-    lg: "w-[560px] h-[560px]",
+    sm: "w-64 h-64 shrink-0",
+    md: "w-[400px] h-[400px] shrink-0",
+    lg: "w-[560px] h-[560px] shrink-0",
+    xl: "w-[min(80vmin,800px)] aspect-square max-w-full shrink-0",
   };
 
   const squareSize = {
     sm: "w-8 h-8 text-xl",
     md: "w-[50px] h-[50px] text-3xl",
     lg: "w-[70px] h-[70px] text-4xl",
+    xl: "w-full h-full min-w-0 min-h-0 text-4xl sm:text-5xl",
   };
 
   const handleSquareClick = (row: number, col: number) => {
+    if (disabled) return;
     if (gameState.isCheckmate || gameState.isStalemate) return;
+    if (botDifficulty && gameState.currentTurn === "black") return;
     selectSquare({ row, col });
   };
 
@@ -105,8 +122,9 @@ const ChessBoard = ({ size = "md", showControls = true }: ChessBoardProps) => {
 
         <div
           className={cn(
-            "grid grid-cols-8 rounded-lg overflow-hidden shadow-2xl border-2 border-border",
-            sizeClasses[size]
+            "grid grid-cols-8 grid-rows-8 rounded-lg overflow-hidden shadow-2xl border-2 border-border",
+            sizeClasses[size],
+            disabled && "pointer-events-none opacity-80"
           )}
         >
           {gameState.board.map((row, rowIndex) =>
@@ -161,7 +179,7 @@ const ChessBoard = ({ size = "md", showControls = true }: ChessBoardProps) => {
         <Button
           variant="outline"
           size="sm"
-          onClick={resetGame}
+          onClick={handleNewGame}
           className="gap-2"
         >
           <RotateCcw className="w-4 h-4" />

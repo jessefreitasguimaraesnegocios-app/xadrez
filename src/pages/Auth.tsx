@@ -41,13 +41,30 @@ const Auth = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    const { error } = await signIn(loginEmail, loginPassword);
-
-    if (error) {
+    const email = loginEmail.trim().toLowerCase();
+    if (!email || !loginPassword) {
       toast({
         variant: 'destructive',
         title: 'Erro no login',
-        description: error.message,
+        description: 'Preencha e-mail e senha.',
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    const { error } = await signIn(email, loginPassword);
+
+    if (error) {
+      const msg =
+        error.message?.includes('Invalid login credentials') || error.message?.includes('invalid_credentials')
+          ? 'E-mail ou senha incorretos.'
+          : error.message?.includes('Email not confirmed')
+            ? 'Confirme seu e-mail pelo link que enviamos antes de entrar.'
+            : error.message;
+      toast({
+        variant: 'destructive',
+        title: 'Erro no login',
+        description: msg,
       });
     }
 

@@ -100,6 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUp = async (email: string, password: string, username: string) => {
     try {
+      const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : email;
       // Check if username is taken
       const { data: existingUser } = await supabase
         .from('profiles')
@@ -112,7 +113,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: normalizedEmail,
         password,
         options: {
           emailRedirectTo: window.location.origin,
@@ -146,8 +147,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     try {
+      const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : email;
       const { error } = await supabase.auth.signInWithPassword({
-        email,
+        email: normalizedEmail,
         password,
       });
 

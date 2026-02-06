@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { 
   GameState, 
   Piece, 
@@ -17,6 +17,7 @@ import {
   isStalemate,
   getPieceAt
 } from './moveValidation';
+import { getBotMove, type BotDifficulty } from './bot';
 
 const initialCastlingRights: CastlingRights = {
   whiteKingside: true,
@@ -39,11 +40,25 @@ const createInitialState = (): GameState => ({
   moveHistory: [],
 });
 
-export const useChessGame = () => {
+export interface UseChessGameOptions {
+  botDifficulty?: BotDifficulty | null;
+  onTurnChange?: (turn: PieceColor) => void;
+  onGameOver?: () => void;
+  /** Called once when the first move is played (white). */
+  onFirstMove?: () => void;
+}
+
+export const useChessGame = (options?: UseChessGameOptions) => {
+  const botDifficulty = options?.botDifficulty ?? null;
+  const onTurnChange = options?.onTurnChange;
+  const onGameOver = options?.onGameOver;
+  const onFirstMove = options?.onFirstMove;
   const [gameState, setGameState] = useState<GameState>(createInitialState);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [legalMoves, setLegalMoves] = useState<Square[]>([]);
   const [promotionPending, setPromotionPending] = useState<{ from: Square; to: Square } | null>(null);
+  const botScheduled = useRef(false);
+  const onFirstMoveCalled = useRef(false);
 
   const selectSquare = useCallback((square: Square) => {
     const piece = getPieceAt(gameState.board, square);
@@ -195,7 +210,45 @@ export const useChessGame = () => {
     setLegalMoves([]);
   }, []);
 
+  useEffect(() => {
+    onTurnChange?.(gameState.currentTurn);
+  }, [gameState.currentTurn, onTurnChange]);
+
+  useEffect(() => {
+    if (gameState.isCheckmate || gameState.isStalemate || gameState.isDraw) {
+      onGameOver?.();
+    }
+  }, [gameState.isCheckmate, gameState.isStalemate, gameState.isDraw, onGameOver]);
+
+  useEffect(() => {
+    if (gameState.moveHistory.length === 1 && !onFirstMoveCalled.current) {
+      onFirstMoveCalled.current = true;
+      onFirstMove?.();
+    }
+  }, [gameState.moveHistory.length, onFirstMove]);
+
+  useEffect(() => {
+    if (
+      !botDifficulty ||
+      gameState.currentTurn !== 'black' ||
+      gameState.isCheckmate ||
+      gameState.isStalemate ||
+      promotionPending ||
+      botScheduled.current
+    )
+      return;
+    botScheduled.current = true;
+    const t = setTimeout(() => {
+      const move = getBotMove(gameState, botDifficulty);
+      botScheduled.current = false;
+      if (move) executeMove(move.from, move.to, move.promotion);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [botDifficulty, gameState, promotionPending, executeMove]);
+
   const resetGame = useCallback(() => {
+    botScheduled.current = false;
+    onFirstMoveCalled.current = false;
     setGameState(createInitialState());
     setSelectedSquare(null);
     setLegalMoves([]);

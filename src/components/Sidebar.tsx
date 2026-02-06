@@ -69,25 +69,27 @@ const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
             </div>
           </div>
         ) : user && profile ? (
-          <Link to="/profile" className="block">
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors cursor-pointer">
-              <Avatar className="w-10 h-10 ring-2 ring-primary">
-                <AvatarImage src={profile.avatar_url || undefined} />
-                <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-                  {profile.username.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{profile.display_name || profile.username}</p>
-                <p className="text-xs text-sidebar-foreground/60">
-                  {profile.elo_rating} ELO • {profile.wins}V/{profile.losses}D
-                </p>
-                <Link to="/wallet" className="block mt-1 text-xs font-medium text-accent hover:underline">
-                  Saldo: R$ {Number(balance_available).toFixed(2)}
-                </Link>
+          <div className="flex flex-col gap-1">
+            <Link to="/profile" className="block">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors cursor-pointer">
+                <Avatar className="w-10 h-10 ring-2 ring-primary">
+                  <AvatarImage src={profile.avatar_url || undefined} />
+                  <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+                    {profile.username.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{profile.display_name || profile.username}</p>
+                  <p className="text-xs text-sidebar-foreground/60">
+                    {profile.elo_rating} ELO • {profile.wins}V/{profile.losses}D
+                  </p>
+                </div>
               </div>
-            </div>
-          </Link>
+            </Link>
+            <Link to="/wallet" className="block px-3 pb-1 text-xs font-medium text-accent hover:underline">
+              Saldo: R$ {Number(balance_available).toFixed(2)}
+            </Link>
+          </div>
         ) : (
           <Button
             variant="outline"

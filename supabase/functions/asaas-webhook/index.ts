@@ -1,4 +1,4 @@
-import "jsr:@supabase/functions-js/edge_runtime.d.ts";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const CORS_HEADERS = {
@@ -18,8 +18,20 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  const webhookSecret = Deno.env.get("ASAAS_WEBHOOK_SECRET");
+  if (webhookSecret) {
+    const authHeader = req.headers.get("authorization") || "";
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (token !== webhookSecret) {
+      return new Response(JSON.stringify({ error: "Invalid webhook token" }), {
+        status: 401,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+  }
+
   const bodyText = await req.text();
-  let payload: { event?: string; payment?: { id?: string; status?: string; value?: number }; access_token?: string; token?: string };
+  let payload: { event?: string; payment?: { id?: string; value?: number } };
   try {
     payload = JSON.parse(bodyText);
   } catch {
@@ -29,19 +41,7 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const webhookSecret = Deno.env.get("ASAAS_WEBHOOK_SECRET");
-  if (webhookSecret) {
-    const signature = req.headers.get("asaas-access-token") || req.headers.get("x-asaas-signature") || "";
-    const token = payload.access_token ?? payload.token ?? "";
-    if (token !== webhookSecret && signature !== webhookSecret) {
-      return new Response(JSON.stringify({ error: "Invalid webhook signature" }), {
-        status: 401,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      });
-    }
-  }
-
-  const event = payload.event || payload.payment?.status;
+  const event = payload.event;
   const paymentId = payload.payment?.id;
   const value = payload.payment?.value;
 
@@ -58,9 +58,7 @@ Deno.serve(async (req: Request) => {
 
   const isConfirmed =
     event === "PAYMENT_CONFIRMED" ||
-    event === "PAYMENT_RECEIVED" ||
-    payload.payment?.status === "CONFIRMED" ||
-    payload.payment?.status === "RECEIVED";
+    event === "PAYMENT_RECEIVED";
 
   if (!isConfirmed) {
     return new Response(JSON.stringify({ received: true }), {
@@ -89,32 +87,14 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const amount = value ?? existing.amount;
+  const amount = Number(value ?? existing.amount);
 
-  const { data: wallet, error: walletSelectError } = await supabase
-    .from("wallets")
-    .select("id, balance_available")
-    .eq("user_id", existing.user_id)
-    .single();
+  const { data: rpcRows, error: rpcError } = await supabase.rpc("increment_wallet_balance", {
+    p_user_id: existing.user_id,
+    p_amount: amount,
+  });
 
-  if (walletSelectError || !wallet) {
-    return new Response(JSON.stringify({ error: "Wallet not found" }), {
-      status: 500,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-    });
-  }
-
-  const newBalance = Number(wallet.balance_available) + Number(amount);
-
-  const { error: updateWalletError } = await supabase
-    .from("wallets")
-    .update({
-      balance_available: newBalance,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("user_id", existing.user_id);
-
-  if (updateWalletError) {
+  if (rpcError || !rpcRows?.length) {
     return new Response(JSON.stringify({ error: "Failed to update wallet" }), {
       status: 500,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
@@ -126,19 +106,18 @@ Deno.serve(async (req: Request) => {
     .update({ status: "completed" })
     .eq("asaas_payment_id", paymentId);
 
-  const { data: txRows } = await supabase
+  const { data: pendingTx } = await supabase
     .from("transactions")
     .select("id")
     .eq("user_id", existing.user_id)
     .eq("type", "deposit")
-    .eq("status", "pending");
-  for (const row of txRows || []) {
-    const { data: one } = await supabase.from("transactions").select("metadata").eq("id", row.id).single();
-    const meta = (one as { metadata?: { asaas_payment_id?: string } } | null)?.metadata;
-    if (meta?.asaas_payment_id === paymentId) {
-      await supabase.from("transactions").update({ status: "completed" }).eq("id", row.id);
-      break;
-    }
+    .eq("status", "pending")
+    .contains("metadata", { asaas_payment_id: paymentId })
+    .limit(1)
+    .maybeSingle();
+
+  if (pendingTx?.id) {
+    await supabase.from("transactions").update({ status: "completed" }).eq("id", pendingTx.id);
   }
 
   return new Response(JSON.stringify({ received: true }), {
