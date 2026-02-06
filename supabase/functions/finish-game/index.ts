@@ -13,18 +13,30 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAuth = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: req.headers.get("authorization") ?? "" } },
-    });
-    const { data: { user } } = await supabaseAuth.auth.getUser();
-    if (!user) {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });
     }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized", detail: userError?.message ?? "Invalid token" }), {
+        status: 401,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    const userId = user.id;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
     const gameId = body?.gameId ?? body?.game_id;
@@ -36,7 +48,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { data: game, error: gameErr } = await supabase
       .from("games")
       .select("id, white_player_id, black_player_id, bet_amount, status")
@@ -57,7 +68,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    if (user.id !== game.white_player_id && user.id !== game.black_player_id) {
+    if (userId !== game.white_player_id && userId !== game.black_player_id) {
       return new Response(JSON.stringify({ error: "You must be a player in this game" }), {
         status: 403,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },

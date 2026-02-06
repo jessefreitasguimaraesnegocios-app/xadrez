@@ -6,6 +6,7 @@ const DEPOSIT_MAX = 5000;
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 Deno.serve(async (req: Request) => {
@@ -13,30 +14,49 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { headers: CORS_HEADERS });
   }
 
+  console.log("AUTH HEADER RECEBIDO:", req.headers.get("authorization") ? "presente" : "null");
+
   try {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", detail: "Missing or invalid Authorization header" }),
+        { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const asaasApiKey = Deno.env.get("ASAAS_API_KEY")!;
-    const asaasBaseUrl = Deno.env.get("ASAAS_BASE_URL") || "https://sandbox.asaas.com";
+    const asaasBaseUrl = Deno.env.get("ASAAS_BASE_URL") ?? "https://api.asaas.com/v3";
 
-    const supabaseAuth = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: {
-        headers: {
-          Authorization: req.headers.get("authorization") ?? "",
-        },
-      },
+    // Validar JWT: cliente anon com o header da requisição + getUser() (não usa refresh)
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user } } = await supabaseAuth.auth.getUser();
-    if (!user) {
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    if (userError || !user) {
+      console.log("getUser falhou:", userError?.message ?? "user null");
       return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
+        JSON.stringify({ error: "Unauthorized", detail: userError?.message ?? "Invalid token" }),
         { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
     const userId = user.id;
-    const body = await req.json();
-    const amount = typeof body?.amount === "number" ? body.amount : parseFloat(body?.amount);
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    let body: Record<string, unknown>;
+    try {
+      body = (await req.json()) as Record<string, unknown>;
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON body" }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    const amount = typeof body?.amount === "number" ? body.amount : parseFloat(String(body?.amount ?? ""));
     if (typeof amount !== "number" || isNaN(amount) || amount < DEPOSIT_MIN || amount > DEPOSIT_MAX) {
       return new Response(
         JSON.stringify({ error: `Amount must be between ${DEPOSIT_MIN} and ${DEPOSIT_MAX}` }),
@@ -45,10 +65,9 @@ Deno.serve(async (req: Request) => {
     }
     const amountRounded = Math.round(amount * 100) / 100;
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("id, display_name, username")
+      .select("id, display_name, username, cpf_cnpj")
       .eq("user_id", userId)
       .single();
     if (profileError || !profile) {
@@ -60,36 +79,52 @@ Deno.serve(async (req: Request) => {
 
     const email = user.email || `${userId}@chessbet.placeholder`;
     const name = profile.display_name || profile.username || "Jogador";
+    const cpfCnpjRaw = (profile as { cpf_cnpj?: string | null }).cpf_cnpj ?? null;
+    const cpfCnpj = cpfCnpjRaw ? String(cpfCnpjRaw).replace(/\D/g, "") : "";
+    if (!(cpfCnpj.length === 11 || cpfCnpj.length === 14)) {
+      return new Response(
+        JSON.stringify({
+          error: "CPF/CNPJ obrigatório",
+          detail: "Para gerar PIX é necessário informar CPF ou CNPJ no seu perfil.",
+        }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
 
     const customerPayload = {
       name,
       email,
       externalReference: userId,
+      cpfCnpj,
     };
-    const customerRes = await fetch(`${asaasBaseUrl}/api/v3/customers`, {
+    const asaasHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      "access_token": asaasApiKey,
+      "User-Agent": "ChessBet/1.0",
+    };
+
+    const customerRes = await fetch(`${asaasBaseUrl}/customers`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        access_token: asaasApiKey,
-      },
+      headers: asaasHeaders,
       body: JSON.stringify(customerPayload),
     });
     let customerId: string;
     if (customerRes.ok) {
-      const customerData = await customerRes.json();
-      customerId = customerData.id;
+      const customerData = (await customerRes.json().catch(() => ({}))) as { id?: string };
+      customerId = customerData.id ?? "";
     } else {
-      const errData = await customerRes.json();
-      if (errData.errors?.[0]?.description?.includes("already exists") || customerRes.status === 400) {
-        const listRes = await fetch(`${asaasBaseUrl}/api/v3/customers?externalReference=${userId}`, {
-          headers: { access_token: asaasApiKey },
+      const errData = (await customerRes.json().catch(() => ({}))) as { errors?: { description?: string }[] };
+      const desc = errData.errors?.[0]?.description ?? "";
+      if (desc.includes("already exists") || customerRes.status === 400) {
+        const listRes = await fetch(`${asaasBaseUrl}/customers?externalReference=${userId}`, {
+          headers: asaasHeaders,
         });
-        const listData = await listRes.json();
+        const listData = (await listRes.json().catch(() => ({}))) as { data?: { id: string }[] };
         if (listData.data?.length) {
           customerId = listData.data[0].id;
         } else {
           return new Response(
-            JSON.stringify({ error: "Failed to get or create Asaas customer" }),
+            JSON.stringify({ error: "Failed to get or create Asaas customer", details: errData }),
             { status: 502, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
           );
         }
@@ -101,6 +136,24 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Garantir que o customer tem CPF/CNPJ (obrigatório para criar cobrança PIX)
+    const putCustomerRes = await fetch(`${asaasBaseUrl}/customers/${customerId}`, {
+      method: "PUT",
+      headers: asaasHeaders,
+      body: JSON.stringify({ cpfCnpj }),
+    });
+    if (!putCustomerRes.ok) {
+      const putErr = (await putCustomerRes.json().catch(() => ({}))) as { errors?: unknown[] };
+      console.log("PUT customer cpfCnpj falhou:", putCustomerRes.status, putErr);
+      return new Response(
+        JSON.stringify({
+          error: "Não foi possível atualizar CPF/CNPJ no Asaas. Tente novamente.",
+          details: putErr,
+        }),
+        { status: 502, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 1);
     const paymentPayload = {
@@ -110,36 +163,46 @@ Deno.serve(async (req: Request) => {
       dueDate: dueDate.toISOString().split("T")[0],
       description: `Depósito ChessBet - ${amountRounded}`,
     };
-    const paymentRes = await fetch(`${asaasBaseUrl}/api/v3/payments`, {
+    const paymentRes = await fetch(`${asaasBaseUrl}/payments`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        access_token: asaasApiKey,
-      },
+      headers: asaasHeaders,
       body: JSON.stringify(paymentPayload),
     });
     if (!paymentRes.ok) {
-      const errData = await paymentRes.json();
+      const errData = (await paymentRes.json().catch(() => ({}))) as Record<string, unknown>;
       return new Response(
         JSON.stringify({ error: "Failed to create PIX payment", details: errData }),
         { status: 502, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
-    const paymentData = await paymentRes.json();
+    const paymentData = (await paymentRes.json().catch(() => ({}))) as { id?: string };
     const paymentId = paymentData.id;
-
-    const qrRes = await fetch(`${asaasBaseUrl}/api/v3/payments/${paymentId}/pixQrCode`, {
-      headers: { access_token: asaasApiKey },
-    });
-    if (!qrRes.ok) {
+    if (!paymentId) {
       return new Response(
-        JSON.stringify({ error: "Failed to get PIX QR Code" }),
+        JSON.stringify({ error: "Asaas não retornou ID do pagamento", details: paymentData }),
         { status: 502, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
-    const qrData = await qrRes.json();
+
+    const qrRes = await fetch(`${asaasBaseUrl}/payments/${paymentId}/pixQrCode`, {
+      headers: asaasHeaders,
+    });
+    if (!qrRes.ok) {
+      const qrErr = (await qrRes.json().catch(() => ({}))) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({ error: "Failed to get PIX QR Code", details: qrErr }),
+        { status: 502, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    const qrData = (await qrRes.json().catch(() => ({}))) as { encodedImage?: string; payload?: string; expirationDate?: string };
     const qrCodeBase64 = qrData.encodedImage;
     const payload = qrData.payload;
+    if (!qrCodeBase64 || !payload) {
+      return new Response(
+        JSON.stringify({ error: "Asaas não retornou QR Code válido", details: qrData }),
+        { status: 502, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
 
     const { error: pixDepositError } = await supabaseAdmin.from("pix_deposits").insert({
       user_id: userId,
@@ -178,6 +241,7 @@ Deno.serve(async (req: Request) => {
       { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (e) {
+    console.error("create-pix-deposit error:", e);
     return new Response(
       JSON.stringify({ error: "Internal error", message: String(e) }),
       { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }

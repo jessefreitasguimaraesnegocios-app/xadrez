@@ -24,13 +24,25 @@ Deno.serve(async (req: Request) => {
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const asaasApiKey = Deno.env.get("ASAAS_API_KEY")!;
-  const asaasBaseUrl = Deno.env.get("ASAAS_BASE_URL") || "https://sandbox.asaas.com";
+  const asaasBaseUrl = Deno.env.get("ASAAS_BASE_URL") ?? "https://api.asaas.com/v3";
+  const asaasHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    "access_token": asaasApiKey,
+    "User-Agent": "ChessBet/1.0",
+  };
+
+  // Auto-approve pending_review when scheduled_after has passed (plan: process only "approved")
+  await supabase
+    .from("withdrawals")
+    .update({ status: "approved" })
+    .eq("status", "pending_review")
+    .lte("scheduled_after", new Date().toISOString());
 
   const { data: rows, error: listErr } = await supabase
     .from("withdrawals")
     .select("id, user_id, amount, pix_key, pix_key_type, status")
     .is("asaas_transfer_id", null)
-    .in("status", ["pending_review", "approved"])
+    .eq("status", "approved")
     .lte("scheduled_after", new Date().toISOString())
     .order("scheduled_after", { ascending: true })
     .limit(20);
@@ -62,12 +74,9 @@ Deno.serve(async (req: Request) => {
       pixAddressKey: w.pix_key,
       pixAddressKeyType: w.pix_key_type,
     };
-    const transferRes = await fetch(`${asaasBaseUrl}/api/v3/transfers`, {
+    const transferRes = await fetch(`${asaasBaseUrl}/transfers`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        access_token: asaasApiKey,
-      },
+      headers: asaasHeaders,
       body: JSON.stringify(transferPayload),
     });
 

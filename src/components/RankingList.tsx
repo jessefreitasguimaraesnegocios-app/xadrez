@@ -1,24 +1,49 @@
+import { useState, useEffect } from "react";
 import PlayerCard from "./PlayerCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { supabase } from "@/integrations/supabase/client";
 
-const mockPlayers = [
-  { id: 1, name: "MagnusCarlsen", rating: 2847, rank: 1, wins: 342, losses: 45, isOnline: true },
-  { id: 2, name: "HikaruNakamura", rating: 2789, rank: 2, wins: 298, losses: 67, isOnline: true },
-  { id: 3, name: "FabianoCaruana", rating: 2766, rank: 3, wins: 256, losses: 78, isOnline: false },
-  { id: 4, name: "DingLiren", rating: 2754, rank: 4, wins: 234, losses: 89, isOnline: true },
-  { id: 5, name: "IanNepomniachtchi", rating: 2745, rank: 5, wins: 212, losses: 92, isOnline: false },
-  { id: 6, name: "AlirezzaFirouzja", rating: 2738, rank: 6, wins: 198, losses: 87, isOnline: true },
-  { id: 7, name: "WesleySo", rating: 2732, rank: 7, wins: 187, losses: 95, isOnline: false },
-  { id: 8, name: "AnishGiri", rating: 2720, rank: 8, wins: 176, losses: 101, isOnline: true },
-];
+type ProfileRow = {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  elo_rating: number;
+  wins: number;
+  losses: number;
+  is_online: boolean;
+};
 
 interface RankingListProps {
   variant?: "full" | "compact";
   limit?: number;
 }
 
-const RankingList = ({ variant = "full", limit }: RankingListProps) => {
-  const players = limit ? mockPlayers.slice(0, limit) : mockPlayers;
+const RankingList = ({ variant = "full", limit = 10 }: RankingListProps) => {
+  const [players, setPlayers] = useState<(ProfileRow & { rank: number })[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      const query = supabase
+        .from("profiles")
+        .select("user_id, username, display_name, avatar_url, elo_rating, wins, losses, is_online")
+        .order("elo_rating", { ascending: false })
+        .limit(limit ?? 50);
+
+      const { data, error } = await query;
+      if (error) {
+        setPlayers([]);
+        setLoading(false);
+        return;
+      }
+      setPlayers(
+        (data ?? []).map((p, i) => ({ ...(p as ProfileRow), rank: i + 1 }))
+      );
+      setLoading(false);
+    };
+    load();
+  }, [limit]);
 
   return (
     <div className="space-y-3">
@@ -30,18 +55,25 @@ const RankingList = ({ variant = "full", limit }: RankingListProps) => {
       </div>
       <ScrollArea className={variant === "compact" ? "h-[300px]" : "h-[500px]"}>
         <div className="space-y-2 pr-4">
-          {players.map((player) => (
-            <PlayerCard
-              key={player.id}
-              name={player.name}
-              rating={player.rating}
-              rank={player.rank}
-              wins={player.wins}
-              losses={player.losses}
-              isOnline={player.isOnline}
-              variant={variant === "compact" ? "compact" : "default"}
-            />
-          ))}
+          {loading ? (
+            <p className="text-sm text-muted-foreground py-4">Carregando...</p>
+          ) : players.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">Nenhum jogador no ranking.</p>
+          ) : (
+            players.map((player) => (
+              <PlayerCard
+                key={player.user_id}
+                name={player.display_name || player.username}
+                avatar={player.avatar_url ?? undefined}
+                rating={player.elo_rating}
+                rank={player.rank}
+                wins={player.wins}
+                losses={player.losses}
+                isOnline={player.is_online}
+                variant={variant === "compact" ? "compact" : "default"}
+              />
+            ))
+          )}
         </div>
       </ScrollArea>
     </div>

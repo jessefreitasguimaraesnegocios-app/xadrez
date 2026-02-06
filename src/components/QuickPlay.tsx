@@ -46,14 +46,14 @@ const gameTypes = [
 ];
 
 interface QuickPlayProps {
-  onStartGame: () => void;
+  onStartGame: (gameId?: string | null) => void;
 }
 
 const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
   const { user } = useAuth();
   const { balance_available } = useWallet();
   const navigate = useNavigate();
-  const { isSearching, matchFound, joinQueue, leaveQueue } = useMatchmaking();
+  const { isSearching, matchFound, gameId, joinQueue, leaveQueue } = useMatchmaking();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
 
   const canBet = user && balance_available >= MIN_BALANCE_TO_BET;
@@ -78,9 +78,9 @@ const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
     setSelectedMode(null);
   };
 
-  // If match found, start the game
+  // If match found, start the game (pass gameId so GameView can load the right game)
   if (matchFound) {
-    onStartGame();
+    onStartGame(gameId ?? undefined);
   }
 
   return (

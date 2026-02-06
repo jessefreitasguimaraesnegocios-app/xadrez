@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { getEdgeFunctionAuthHeaders } from '@/lib/edgeFunctionAuth';
+import { invokeEdgeFunction } from '@/lib/edgeFunctionAuth';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
 
@@ -164,26 +164,28 @@ export const useMatchmaking = () => {
       const finalBet = Math.min(betAmount, opponent.bet_amount ?? 0);
 
       if (finalBet > 0) {
-        const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
-        if (sessionError || !session?.access_token) {
+        const { data: { session: refreshed }, error: sessionError } = await supabase.auth.refreshSession();
+        if (sessionError || !refreshed?.access_token) {
+          await supabase.auth.signOut();
           toast({
             variant: 'destructive',
-            title: 'Sessão inválida',
+            title: 'Sessão expirada',
             description: 'Faça login novamente para continuar.',
           });
           setState(prev => ({ ...prev, isSearching: false }));
           await supabase.from('matchmaking_queue').delete().in('user_id', [user.id, opponent.user_id]);
           return;
         }
-        const { data: fnData, error: fnError } = await supabase.functions.invoke('create-match', {
-          body: {
+        const { data: fnData, error: fnError } = await invokeEdgeFunction<{ id?: string; error?: string }>(
+          refreshed,
+          'create-match',
+          {
             whitePlayerId: user.id,
             blackPlayerId: opponent.user_id,
             timeControl,
             betAmount: finalBet,
-          },
-          headers: getEdgeFunctionAuthHeaders(session),
-        });
+          }
+        );
 
         if (fnError || fnData?.error) {
           toast({

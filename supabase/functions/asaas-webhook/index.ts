@@ -18,10 +18,13 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // Asaas envia o token no header "asaas-access-token" (não em Authorization)
+  // Docs: https://docs.asaas.com/docs/receba-eventos-do-asaas-no-seu-endpoint-de-webhook
   const webhookSecret = Deno.env.get("ASAAS_WEBHOOK_SECRET");
   if (webhookSecret) {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const asaasToken = req.headers.get("asaas-access-token")?.trim() ?? "";
+    const bearerToken = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
+    const token = asaasToken || bearerToken;
     if (token !== webhookSecret) {
       return new Response(JSON.stringify({ error: "Invalid webhook token" }), {
         status: 401,

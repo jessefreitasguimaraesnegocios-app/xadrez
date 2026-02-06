@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useWallet } from "@/hooks/useWallet";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { getEdgeFunctionAuthHeaders } from "@/lib/edgeFunctionAuth";
+import { invokeEdgeFunction } from "@/lib/edgeFunctionAuth";
 import Sidebar from "@/components/Sidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,8 @@ import {
 import { Wallet as WalletIcon, ArrowDownCircle, ArrowUpCircle, Copy, Loader2 } from "lucide-react";
 
 const Wallet = () => {
-  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const { user, profile, updateProfile, loading: authLoading } = useAuth();
   const {
     balance_available,
     balance_locked,
@@ -34,6 +35,7 @@ const Wallet = () => {
   const [depositOpen, setDepositOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
+  const [cpfCnpj, setCpfCnpj] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [pixKey, setPixKey] = useState("");
   const [pixKeyType, setPixKeyType] = useState("EVP");
@@ -70,22 +72,59 @@ const Wallet = () => {
     setDepositLoading(true);
     setDepositResult(null);
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
-      if (sessionError || !session?.access_token) {
+      // Asaas exige CPF/CNPJ no customer para criar cobrança PIX
+      const cpfCnpjDigits = cpfCnpj.replace(/\D/g, "");
+      if (!(cpfCnpjDigits.length === 11 || cpfCnpjDigits.length === 14)) {
         toast({
           variant: "destructive",
-          title: "Sessão inválida",
-          description: "Faça login novamente para continuar.",
+          title: "CPF/CNPJ inválido",
+          description: "Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido (somente números).",
         });
         setDepositLoading(false);
         return;
       }
-      const { data, error } = await supabase.functions.invoke("create-pix-deposit", {
-        body: { amount },
-        headers: getEdgeFunctionAuthHeaders(session),
-      });
+
+      // Salvar no perfil (pra Edge Function usar)
+      if ((profile?.cpf_cnpj ?? null) !== cpfCnpjDigits) {
+        const { error: upErr } = await updateProfile({ cpf_cnpj: cpfCnpjDigits });
+        if (upErr) throw upErr;
+      }
+
+      // Garantir que temos sessão antes de qualquer chamada
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (!currentSession?.access_token) {
+        toast({
+          variant: "destructive",
+          title: "Usuário não autenticado",
+          description: "Faça login novamente para continuar.",
+        });
+        navigate("/auth", { replace: true });
+        setDepositLoading(false);
+        return;
+      }
+      const { data: { session: refreshed }, error: sessionError } = await supabase.auth.refreshSession();
+      if (sessionError || !refreshed?.access_token) {
+        await supabase.auth.signOut();
+        toast({
+          variant: "destructive",
+          title: "Sessão expirada",
+          description: "Faça login novamente para continuar.",
+        });
+        navigate("/auth", { replace: true });
+        setDepositLoading(false);
+        return;
+      }
+      const { data, error } = await invokeEdgeFunction<{
+        qrCodeBase64?: string;
+        payload?: string;
+        paymentId?: string;
+        error?: string;
+      }>(refreshed, "create-pix-deposit", { amount });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      if (!data?.qrCodeBase64 || !data?.payload || !data?.paymentId) {
+        throw new Error("Resposta inválida do servidor");
+      }
       setDepositResult({
         qrCodeBase64: data.qrCodeBase64,
         payload: data.payload,
@@ -139,20 +178,23 @@ const Wallet = () => {
     }
     setWithdrawLoading(true);
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
-      if (sessionError || !session?.access_token) {
+      const { data: { session: refreshed }, error: sessionError } = await supabase.auth.refreshSession();
+      if (sessionError || !refreshed?.access_token) {
+        await supabase.auth.signOut();
         toast({
           variant: "destructive",
-          title: "Sessão inválida",
+          title: "Sessão expirada",
           description: "Faça login novamente para continuar.",
         });
+        navigate("/auth", { replace: true });
         setWithdrawLoading(false);
         return;
       }
-      const { data, error } = await supabase.functions.invoke("request-withdrawal", {
-        body: { amount, pixKey: pixKey.trim(), pixKeyType },
-        headers: getEdgeFunctionAuthHeaders(session),
-      });
+      const { data, error } = await invokeEdgeFunction<{ scheduledAfter?: string; error?: string }>(
+        refreshed,
+        "request-withdrawal",
+        { amount, pixKey: pixKey.trim(), pixKeyType }
+      );
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast({
@@ -228,6 +270,7 @@ const Wallet = () => {
                   onClick={() => {
                     setDepositResult(null);
                     setDepositAmount("");
+                    setCpfCnpj(profile?.cpf_cnpj ? String(profile.cpf_cnpj) : "");
                     setDepositOpen(true);
                   }}
                 >
@@ -299,6 +342,19 @@ const Wallet = () => {
                   value={depositAmount}
                   onChange={(e) => setDepositAmount(e.target.value)}
                 />
+              </div>
+              <div>
+                <Label htmlFor="cpf-cnpj">CPF/CNPJ do titular</Label>
+                <Input
+                  id="cpf-cnpj"
+                  type="text"
+                  placeholder="Somente números"
+                  value={cpfCnpj}
+                  onChange={(e) => setCpfCnpj(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Obrigatório para gerar cobrança PIX no Asaas.
+                </p>
               </div>
               <Button className="w-full" onClick={handleDeposit} disabled={depositLoading}>
                 {depositLoading ? (

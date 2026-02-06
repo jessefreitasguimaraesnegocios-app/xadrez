@@ -15,22 +15,42 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAuth = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: req.headers.get("authorization") ?? "" } },
-    });
-    const { data: { user } } = await supabaseAuth.auth.getUser();
-    if (!user) {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });
     }
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized", detail: userError?.message ?? "Invalid token" }), {
+        status: 401,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
     const userId = user.id;
-    const body = await req.json();
-    const amount = typeof body?.amount === "number" ? body.amount : parseFloat(body?.amount);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    let body: Record<string, unknown>;
+    try {
+      body = (await req.json()) as Record<string, unknown>;
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    const amount = typeof body?.amount === "number" ? body.amount : parseFloat(String(body?.amount ?? ""));
     if (typeof amount !== "number" || isNaN(amount) || amount < WITHDRAW_MIN || amount > WITHDRAW_MAX) {
       return new Response(
         JSON.stringify({ error: `Amount must be between ${WITHDRAW_MIN} and ${WITHDRAW_MAX}` }),
@@ -47,75 +67,31 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const { data: wallet, error: walletErr } = await supabase
-      .from("wallets")
-      .select("id, balance_available")
-      .eq("user_id", userId)
-      .single();
-
-    if (walletErr || !wallet) {
-      return new Response(JSON.stringify({ error: "Wallet not found" }), {
-        status: 400,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      });
-    }
-
-    const available = Number(wallet.balance_available);
-    if (available < amountRounded) {
-      return new Response(JSON.stringify({ error: "Insufficient balance" }), {
-        status: 400,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      });
-    }
-
     const scheduledAfter = new Date();
     scheduledAfter.setHours(scheduledAfter.getHours() + WITHDRAW_DELAY_HOURS);
 
-    const { data: withdrawal, error: withdrawErr } = await supabase
-      .from("withdrawals")
-      .insert({
-        user_id: userId,
-        amount: amountRounded,
-        status: "pending_review",
-        pix_key: pixKey,
-        pix_key_type: pixKeyType,
-        scheduled_after: scheduledAfter.toISOString(),
-      })
-      .select("id, status, scheduled_after")
-      .single();
-
-    if (withdrawErr) {
-      return new Response(
-        JSON.stringify({ error: "Failed to create withdrawal", details: withdrawErr.message }),
-        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    }
-
-    const { error: walletUpdateErr } = await supabase
-      .from("wallets")
-      .update({
-        balance_available: available - amountRounded,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", userId);
-
-    if (walletUpdateErr) {
-      await supabase.from("withdrawals").update({ status: "cancelled" }).eq("id", withdrawal.id);
-      return new Response(
-        JSON.stringify({ error: "Failed to reserve balance" }),
-        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    }
-
-    await supabase.from("transactions").insert({
-      user_id: userId,
-      type: "withdraw",
-      amount: -amountRounded,
-      status: "pending_review",
-      metadata: { withdrawal_id: withdrawal.id },
+    const { data: rows, error: rpcError } = await supabase.rpc("request_withdrawal_atomic", {
+      p_user_id: userId,
+      p_amount: amountRounded,
+      p_pix_key: pixKey,
+      p_pix_key_type: pixKeyType,
+      p_scheduled_after: scheduledAfter.toISOString(),
     });
+
+    if (rpcError) {
+      return new Response(
+        JSON.stringify({ error: "Failed to create withdrawal", details: rpcError.message }),
+        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+
+    const withdrawal = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+    if (!withdrawal?.id) {
+      return new Response(JSON.stringify({ error: "Insufficient balance or wallet not found" }), {
+        status: 400,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
 
     return new Response(
       JSON.stringify({

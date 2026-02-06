@@ -10,6 +10,7 @@ interface Profile {
   display_name: string | null;
   avatar_url: string | null;
   bio: string | null;
+  cpf_cnpj?: string | null;
   elo_rating: number;
   wins: number;
   losses: number;

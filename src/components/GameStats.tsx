@@ -1,33 +1,42 @@
 import { Card } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, Target, Clock } from "lucide-react";
+import { TrendingUp, TrendingDown, Target, Gamepad2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const GameStats = () => {
+  const { profile } = useAuth();
+
+  const wins = profile?.wins ?? 0;
+  const losses = profile?.losses ?? 0;
+  const draws = profile?.draws ?? 0;
+  const total = wins + losses + draws;
+  const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
+
   const stats = [
     {
       label: "Vitórias",
-      value: 156,
+      value: wins,
       icon: TrendingUp,
       color: "text-bet-win",
       bg: "bg-bet-win/10",
     },
     {
       label: "Derrotas",
-      value: 48,
+      value: losses,
       icon: TrendingDown,
       color: "text-bet-lose",
       bg: "bg-bet-lose/10",
     },
     {
       label: "Taxa de Vitória",
-      value: "76%",
+      value: `${winRate}%`,
       icon: Target,
       color: "text-accent",
       bg: "bg-accent/10",
     },
     {
-      label: "Tempo Médio",
-      value: "12:34",
-      icon: Clock,
+      label: "Partidas",
+      value: total,
+      icon: Gamepad2,
       color: "text-primary",
       bg: "bg-primary/10",
     },

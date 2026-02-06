@@ -197,6 +197,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           bio: string | null
+          cpf_cnpj: string | null
           created_at: string
           display_name: string | null
           draws: number
@@ -215,6 +216,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           bio?: string | null
+          cpf_cnpj?: string | null
           created_at?: string
           display_name?: string | null
           draws?: number
@@ -233,6 +235,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           bio?: string | null
+          cpf_cnpj?: string | null
           created_at?: string
           display_name?: string | null
           draws?: number
@@ -497,7 +500,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_wallet_balance: {
+        Args: { p_user_id: string; p_amount: number }
+        Returns: { id: string; balance_available: number }[]
+      }
+      request_withdrawal_atomic: {
+        Args: {
+          p_user_id: string
+          p_amount: number
+          p_pix_key: string
+          p_pix_key_type: string
+          p_scheduled_after: string
+        }
+        Returns: { id: string; status: string; scheduled_after: string }[]
+      }
+      create_match_atomic: {
+        Args: {
+          p_white_player_id: string
+          p_black_player_id: string
+          p_time_control: string
+          p_bet_amount: number
+        }
+        Returns: { id: string; status: string; time_control: string; bet_amount: number | null; white_player_id: string | null; black_player_id: string | null; started_at: string | null; move_history: Json; created_at: string; ended_at: string | null; result: string | null; fen_position: string | null; white_remaining_time: number | null; black_remaining_time: number | null }[]
+      }
     }
     Enums: {
       [_ in never]: never

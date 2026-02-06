@@ -1,12 +1,53 @@
 /**
  * Header Authorization para chamadas a Edge Functions.
- * Usa o access_token da sessão quando disponível; fallback para a anon public key do Supabase.
+ * Usa o access_token da sessão; NUNCA use anon key para funções que exigem usuário logado.
  */
-const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-
-export function getEdgeFunctionAuthHeaders(session: { access_token?: string } | null): {
-  Authorization: string;
-} {
-  const token = session?.access_token ?? ANON_KEY;
+export function getEdgeFunctionAuthHeaders(session: { access_token?: string } | null): Record<string, string> {
+  const token = session?.access_token ?? "";
   return { Authorization: `Bearer ${token}` };
+}
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+
+/**
+ * Chama uma Edge Function via fetch.
+ * REGRA: fetch manual exige os dois headers — Authorization (JWT) e apikey (anon key).
+ */
+export async function invokeEdgeFunction<T = unknown>(
+  session: { access_token: string },
+  name: string,
+  body: Record<string, unknown>
+): Promise<{ data: T | null; error: Error | null }> {
+  const token = session.access_token;
+  if (!token) {
+    return { data: null, error: new Error("Usuário não autenticado") };
+  }
+  if (!SUPABASE_ANON_KEY) {
+    return { data: null, error: new Error("Config inválida: VITE_SUPABASE_PUBLISHABLE_KEY ausente") };
+  }
+  const url = `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/${name}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let data: T | null = null;
+  try {
+    if (text) data = JSON.parse(text) as T;
+  } catch {
+    // ignore
+  }
+  if (!res.ok) {
+    return {
+      data: data ?? null,
+      error: new Error(data && typeof data === "object" && "error" in data ? String((data as { error?: unknown }).error) : `HTTP ${res.status}`),
+    };
+  }
+  return { data, error: null };
 }

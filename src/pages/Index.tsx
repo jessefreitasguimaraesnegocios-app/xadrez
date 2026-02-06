@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/Sidebar";
 import GameStats from "@/components/GameStats";
+import DashboardTournaments from "@/components/DashboardTournaments";
 import RankingList from "@/components/RankingList";
 import FriendsList from "@/components/FriendsList";
 import QuickPlay from "@/components/QuickPlay";
@@ -22,11 +23,13 @@ const Index = () => {
   const [isBotGame, setIsBotGame] = useState(false);
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty | null>(null);
   const [gameKey, setGameKey] = useState(0);
+  const [matchmakingGameId, setMatchmakingGameId] = useState<string | null>(null);
 
-  const handleStartGame = () => {
+  const handleStartGame = (gameId?: string | null) => {
     setIsBotGame(false);
     setBotDifficulty(null);
     setGameKey((k) => k + 1);
+    setMatchmakingGameId(gameId ?? null);
     setIsPlaying(true);
     setActiveTab("play");
   };
@@ -67,27 +70,7 @@ const Index = () => {
                   <QuickPlay onStartGame={handleStartGame} />
                 </Card>
                 
-                <Card className="p-6 bg-card border-border">
-                  <h2 className="font-display font-bold text-xl mb-4">Torneios em Destaque</h2>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-accent">HOJE</span>
-                        <span className="text-lg font-mono rank-gold">R$ 5.000</span>
-                      </div>
-                      <h3 className="font-display font-semibold">Grande Prêmio Brasil</h3>
-                      <p className="text-sm text-muted-foreground">48/64 jogadores • 20:00</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-bet-win">ABERTO</span>
-                        <span className="text-lg font-mono rank-gold">R$ 2.000</span>
-                      </div>
-                      <h3 className="font-display font-semibold">Arena Noturna</h3>
-                      <p className="text-sm text-muted-foreground">24/128 jogadores • Amanhã</p>
-                    </div>
-                  </div>
-                </Card>
+                <DashboardTournaments />
               </div>
 
               <div className="space-y-6">
@@ -119,6 +102,7 @@ const Index = () => {
                 )}
                 <GameView
                   key={gameKey}
+                  gameId={matchmakingGameId}
                   withBetting={!isBotGame}
                   isBotGame={isBotGame}
                   botDifficulty={botDifficulty}
