@@ -53,6 +53,51 @@ export type Database = {
           },
         ]
       }
+      game_invites: {
+        Row: {
+          id: string
+          from_user_id: string
+          to_user_id: string
+          bet_amount: number | null
+          time_control: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          from_user_id: string
+          to_user_id: string
+          bet_amount?: number | null
+          time_control?: string
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          from_user_id?: string
+          to_user_id?: string
+          bet_amount?: number | null
+          time_control?: string
+          status?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_invites_from_user_id_fkey"
+            columns: ["from_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "game_invites_to_user_id_fkey"
+            columns: ["to_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       game_messages: {
         Row: {
           content: string

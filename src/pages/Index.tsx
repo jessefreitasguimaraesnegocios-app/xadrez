@@ -78,7 +78,7 @@ const Index = () => {
                   <RankingList variant="compact" limit={5} />
                 </Card>
                 <Card className="p-6 bg-card border-border">
-                  <FriendsList />
+                  <FriendsList onStartGame={handleStartGame} />
                 </Card>
               </div>
             </div>
@@ -119,7 +119,7 @@ const Index = () => {
                   </Card>
                 </div>
                 <Card className="p-6 bg-card border-border">
-                  <FriendsList />
+                  <FriendsList onStartGame={handleStartGame} />
                 </Card>
               </div>
             )}
@@ -140,7 +140,7 @@ const Index = () => {
             </div>
             <div className="grid gap-6 md:grid-cols-2">
               <Card className="p-6 bg-card border-border">
-                <FriendsList />
+                <FriendsList onStartGame={handleStartGame} />
               </Card>
               <Card className="p-6 bg-card border-border">
                 <RankingList variant="compact" limit={8} />

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
@@ -13,6 +14,9 @@ import {
 import { UserPlus, Swords, MessageCircle, Search, Check, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useWallet } from "@/hooks/useWallet";
+import { useGameInvites, type GameInviteWithFrom } from "@/hooks/useGameInvites";
+import { useMyTournaments } from "@/hooks/useMyTournaments";
 import { supabase } from "@/integrations/supabase/client";
 import FriendChatPanel from "@/components/FriendChatPanel";
 
@@ -25,11 +29,104 @@ type ProfileRow = {
   is_online: boolean;
 };
 
-const FriendsList = () => {
+type FriendsListProps = {
+  onStartGame?: (gameId: string) => void;
+};
+
+function GameInviteCard({
+  invite,
+  balanceAvailable,
+  onAccept,
+  onDecline,
+  acceptingId,
+  decliningId,
+  displayName,
+  tournamentBlock,
+}: {
+  invite: GameInviteWithFrom;
+  balanceAvailable: number;
+  onAccept: (asBet: boolean) => void;
+  onDecline: () => void;
+  acceptingId: string | null;
+  decliningId: string | null;
+  displayName: (p: { display_name: string | null; username: string }) => string;
+  tournamentBlock?: { blocksPlaying: boolean; minutesLeft: number | null };
+}) {
+  const rawName = displayName({ display_name: invite.from_display_name, username: invite.from_username ?? "" });
+  const name = typeof rawName === "string" && rawName && rawName !== "NaN" ? rawName : "Usuário";
+  const hasBet = invite.bet_amount != null && invite.bet_amount > 0;
+  const betNum = Number(invite.bet_amount);
+  const betFormatted = hasBet && !Number.isNaN(betNum) ? betNum.toFixed(2) : "0.00";
+  const canAcceptByBalance = !hasBet || balanceAvailable >= (invite.bet_amount ?? 0);
+  const blocksPlaying = tournamentBlock?.blocksPlaying ?? false;
+  const canAccept = canAcceptByBalance && !blocksPlaying;
+
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/60 border border-border">
+      <Avatar className="w-10 h-10">
+        <AvatarImage src={invite.from_avatar_url ?? undefined} />
+        <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+          {name.slice(0, 2).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm">{name} te desafiou</p>
+        <p className="text-xs text-muted-foreground">
+          {hasBet ? `Partida apostada: R$ ${betFormatted}` : "Partida normal"}
+        </p>
+        {hasBet && !canAcceptByBalance && (
+          <p className="text-xs text-destructive mt-0.5">Saldo insuficiente para aceitar</p>
+        )}
+        {blocksPlaying && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Aceitar bloqueado: torneio em breve</p>
+        )}
+      </div>
+      <div className="flex gap-1 flex-shrink-0">
+        <Button
+          size="sm"
+          variant="default"
+          className="h-8 gap-1"
+          onClick={() => onAccept(hasBet)}
+          disabled={!canAccept || acceptingId === invite.id || decliningId === invite.id}
+        >
+          {acceptingId === invite.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Aceitar"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8"
+          onClick={onDecline}
+          disabled={acceptingId === invite.id || decliningId === invite.id}
+        >
+          {decliningId === invite.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+const FriendsList = ({ onStartGame }: FriendsListProps) => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
+  const { balance_available } = useWallet();
+  const { blocksPlaying, minutesLeft } = useMyTournaments();
+  const {
+    receivedPending: gameInvitesReceived,
+    sendInvite,
+    acceptInvite,
+    declineInvite,
+    acceptingId,
+    decliningId,
+    BET_MIN,
+    BET_MAX,
+  } = useGameInvites();
   const [searchTerm, setSearchTerm] = useState("");
   const [addFriendOpen, setAddFriendOpen] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteTarget, setInviteTarget] = useState<(ProfileRow & { friendshipId: string }) | null>(null);
+  const [inviteType, setInviteType] = useState<"normal" | "bet">("normal");
+  const [inviteBetInput, setInviteBetInput] = useState("");
+  const [sendingInvite, setSendingInvite] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProfileRow[]>([]);
   const [searching, setSearching] = useState(false);
@@ -199,8 +296,36 @@ const FriendsList = () => {
     await loadFriendsAndPending();
   };
 
-  const handleInviteToGame = (friendName: string) => {
-    toast({ title: "Convite enviado!", description: `${friendName} foi convidado para uma partida` });
+  const handleOpenInviteDialog = (friend: ProfileRow & { friendshipId: string }) => {
+    setInviteTarget(friend);
+    setInviteType("normal");
+    setInviteBetInput("");
+    setInviteDialogOpen(true);
+  };
+
+  const handleSendGameInvite = async () => {
+    if (!inviteTarget || !myUserId) return;
+    setSendingInvite(true);
+    const bet = inviteType === "bet" ? parseFloat(inviteBetInput.replace(",", ".")) : null;
+    if (inviteType === "bet" && (Number.isNaN(bet) || bet < BET_MIN || bet > BET_MAX)) {
+      toast({ variant: "destructive", title: "Valor inválido", description: `Aposta entre R$ ${BET_MIN} e R$ ${BET_MAX}` });
+      setSendingInvite(false);
+      return;
+    }
+    const { error } = await sendInvite(inviteTarget.user_id, bet);
+    setSendingInvite(false);
+    if (error) {
+      toast({ variant: "destructive", title: "Erro ao enviar convite", description: error });
+      return;
+    }
+    toast({
+      title: "Convite enviado!",
+      description: inviteType === "normal"
+        ? `${inviteTarget.display_name || inviteTarget.username} foi convidado para uma partida normal.`
+        : `Convite de partida apostada (R$ ${bet?.toFixed(2)}) enviado.`,
+    });
+    setInviteDialogOpen(false);
+    setInviteTarget(null);
   };
 
   const displayName = (p: ProfileRow) => p.display_name || p.username;
@@ -280,7 +405,90 @@ const FriendsList = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog: Desafiar amigo (partida normal ou apostada) */}
+        <Dialog open={inviteDialogOpen} onOpenChange={(open) => { setInviteDialogOpen(open); if (!open) setInviteTarget(null); }}>
+          <DialogContent className="bg-card sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="font-display">Desafiar para partida</DialogTitle>
+            </DialogHeader>
+            {inviteTarget && (
+              <div className="space-y-4 pt-2">
+                <p className="text-sm text-muted-foreground">
+                  Convidar <span className="font-medium text-foreground">{displayName(inviteTarget)}</span> para:
+                </p>
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="inviteType"
+                      checked={inviteType === "normal"}
+                      onChange={() => setInviteType("normal")}
+                      className="rounded-full"
+                    />
+                    <span className="text-sm">Partida normal</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="inviteType"
+                      checked={inviteType === "bet"}
+                      onChange={() => setInviteType("bet")}
+                      className="rounded-full"
+                    />
+                    <span className="text-sm">Partida apostada</span>
+                  </label>
+                  {inviteType === "bet" && (
+                    <div className="pl-6 space-y-1">
+                      <Label className="text-xs text-muted-foreground">Valor da aposta (R$)</Label>
+                      <Input
+                        type="number"
+                        min={BET_MIN}
+                        max={BET_MAX}
+                        step={0.01}
+                        placeholder={`${BET_MIN} - ${BET_MAX}`}
+                        value={inviteBetInput}
+                        onChange={(e) => setInviteBetInput(e.target.value)}
+                        className="bg-secondary"
+                      />
+                    </div>
+                  )}
+                </div>
+                <Button
+                  className="w-full gap-2"
+                  onClick={handleSendGameInvite}
+                  disabled={sendingInvite || (inviteType === "bet" && !inviteBetInput.trim())}
+                >
+                  {sendingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Swords className="w-4 h-4" />}
+                  Enviar convite
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
+
+      {/* Convites de partida recebidos */}
+      {gameInvitesReceived.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-muted-foreground">Convites de partida</h3>
+          <div className="space-y-2">
+            {gameInvitesReceived.map((inv) => (
+              <GameInviteCard
+                key={inv.id}
+                invite={inv}
+                balanceAvailable={balance_available}
+                onAccept={(asBet) => acceptInvite(inv, asBet, onStartGame)}
+                onDecline={() => declineInvite(inv.id)}
+                acceptingId={acceptingId}
+                decliningId={decliningId}
+                displayName={displayName}
+                tournamentBlock={blocksPlaying ? { blocksPlaying, minutesLeft } : undefined}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Solicitações recebidas: notificação com nome e foto, aceitar ou recusar */}
       {pendingReceived.length > 0 && (
@@ -398,9 +606,10 @@ const FriendsList = () => {
                       className="h-8 w-8"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleInviteToGame(displayName(friend));
+                        handleOpenInviteDialog(friend);
                       }}
                       disabled={!friend.is_online}
+                      title="Desafiar para partida"
                     >
                       <Swords className="w-4 h-4" />
                     </Button>

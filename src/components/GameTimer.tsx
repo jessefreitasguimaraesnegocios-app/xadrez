@@ -10,10 +10,14 @@ interface GameTimerProps {
   className?: string;
 }
 
+const TICK_MS = 100;
+
 const GameTimer = ({ initialTime, isActive, isPlayer, onTimeUp, className }: GameTimerProps) => {
   const [timeLeft, setTimeLeft] = useState(initialTime);
   const onTimeUpRef = useRef(onTimeUp);
   const initialTimeRef = useRef(initialTime);
+  const activeStartRef = useRef<number | null>(null);
+  const remainingAtStartRef = useRef(initialTime);
   onTimeUpRef.current = onTimeUp;
 
   // Reset timer only when initialTime actually changes (e.g. new game)
@@ -21,30 +25,43 @@ const GameTimer = ({ initialTime, isActive, isPlayer, onTimeUp, className }: Gam
     if (initialTimeRef.current !== initialTime) {
       initialTimeRef.current = initialTime;
       setTimeLeft(initialTime);
+      remainingAtStartRef.current = initialTime;
+      activeStartRef.current = null;
     }
   }, [initialTime]);
 
+  // When becoming active: record start time and remaining at that moment
+  useEffect(() => {
+    if (isActive) {
+      activeStartRef.current = Date.now();
+      remainingAtStartRef.current = timeLeft;
+    } else {
+      activeStartRef.current = null;
+    }
+  }, [isActive]); // eslint-disable-line react-hooks/exhaustive-deps -- we only want to capture when isActive toggles; timeLeft is read on purpose
+
+  // Elapsed-time-based countdown: works even for very short turns (e.g. bot moving in <1s)
   useEffect(() => {
     if (!isActive) return;
 
     const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 0) return 0;
-        const newTime = prev - 1;
-        if (newTime <= 0) {
-          onTimeUpRef.current?.();
-          return 0;
-        }
-        return newTime;
-      });
-    }, 1000);
+      const start = activeStartRef.current;
+      if (start == null) return;
+      const elapsed = (Date.now() - start) / 1000;
+      const remaining = Math.max(0, remainingAtStartRef.current - elapsed);
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        onTimeUpRef.current?.();
+      }
+    }, TICK_MS);
 
     return () => clearInterval(interval);
   }, [isActive]);
 
   const formatTime = useCallback((seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const totalSecs = Math.floor(seconds);
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }, []);
 

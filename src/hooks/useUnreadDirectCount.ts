@@ -1,13 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+
+export const DIRECT_MESSAGES_READ_EVENT = "direct-messages-marked-read";
 
 export function useUnreadDirectCount() {
   const { user } = useAuth();
   const myId = user?.id ?? null;
   const [count, setCount] = useState(0);
 
-  const fetchCount = async () => {
+  const fetchCount = useCallback(async () => {
     if (!myId) {
       setCount(0);
       return;
@@ -22,11 +24,11 @@ export function useUnreadDirectCount() {
       return;
     }
     setCount(n ?? 0);
-  };
+  }, [myId]);
 
   useEffect(() => {
     fetchCount();
-  }, [myId]);
+  }, [fetchCount]);
 
   useEffect(() => {
     if (!myId) return;
@@ -41,7 +43,13 @@ export function useUnreadDirectCount() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [myId]);
+  }, [myId, fetchCount]);
+
+  useEffect(() => {
+    const handler = () => fetchCount();
+    window.addEventListener(DIRECT_MESSAGES_READ_EVENT, handler);
+    return () => window.removeEventListener(DIRECT_MESSAGES_READ_EVENT, handler);
+  }, [fetchCount]);
 
   return count;
 }

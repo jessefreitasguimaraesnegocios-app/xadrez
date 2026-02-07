@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { DIRECT_MESSAGES_READ_EVENT } from "./useUnreadDirectCount";
 
 export interface DirectMessage {
   id: string;
@@ -51,12 +52,15 @@ export function useDirectChat(friendUserId: string | null) {
 
   const markAsRead = useCallback(async () => {
     if (!friendUserId || !myId) return;
-    await supabase
+    const { error } = await supabase
       .from("direct_messages")
       .update({ read_at: new Date().toISOString() })
       .eq("receiver_id", myId)
       .eq("sender_id", friendUserId)
       .is("read_at", null);
+    if (!error) {
+      window.dispatchEvent(new CustomEvent(DIRECT_MESSAGES_READ_EVENT));
+    }
   }, [friendUserId, myId]);
 
   useEffect(() => {

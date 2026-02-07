@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useAppearance } from '@/contexts/AppearanceContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -13,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 const Settings = () => {
   const { user, loading } = useAuth();
   const { toast } = useToast();
+  const { theme, setTheme, boardTheme, setBoardTheme, pieceStyle, setPieceStyle } = useAppearance();
   
   // Settings state - persisted to localStorage
   const [soundEnabled, setSoundEnabled] = useState(() => {
@@ -49,20 +51,9 @@ const Settings = () => {
     const saved = localStorage.getItem('settings_chat_notification');
     return saved !== null ? JSON.parse(saved) : true;
   });
-  
-  const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('settings_theme') || 'dark';
-  });
-  
-  const [boardTheme, setBoardTheme] = useState(() => {
-    return localStorage.getItem('settings_board_theme') || 'classic';
-  });
-  
-  const [pieceStyle, setPieceStyle] = useState(() => {
-    return localStorage.getItem('settings_piece_style') || 'classic';
-  });
 
-  // Save settings when they change
+  // Theme, board theme and piece style are in AppearanceContext (saved there)
+  // Save sound/notification settings when they change
   useEffect(() => {
     localStorage.setItem('settings_sound', JSON.stringify(soundEnabled));
     localStorage.setItem('settings_notifications', JSON.stringify(notificationsEnabled));
@@ -71,10 +62,7 @@ const Settings = () => {
     localStorage.setItem('settings_timer_warning', JSON.stringify(timerWarningSound));
     localStorage.setItem('settings_game_start_notification', JSON.stringify(gameStartNotification));
     localStorage.setItem('settings_chat_notification', JSON.stringify(chatNotification));
-    localStorage.setItem('settings_theme', theme);
-    localStorage.setItem('settings_board_theme', boardTheme);
-    localStorage.setItem('settings_piece_style', pieceStyle);
-  }, [soundEnabled, notificationsEnabled, moveSound, captureSound, timerWarningSound, gameStartNotification, chatNotification, theme, boardTheme, pieceStyle]);
+  }, [soundEnabled, notificationsEnabled, moveSound, captureSound, timerWarningSound, gameStartNotification, chatNotification]);
 
   if (loading) {
     return (

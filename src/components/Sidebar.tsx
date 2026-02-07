@@ -162,9 +162,11 @@ const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
               <span className="flex-1 text-left">{item.label}</span>
               {item.id === "friends" && unreadDirectCount > 0 && (
                 <span
-                  className="absolute right-3 w-2 h-2 rounded-full bg-destructive"
-                  title={`${unreadDirectCount} mensagem(ns) não lida(s)`}
-                />
+                  className="absolute right-3 min-w-[18px] h-[18px] px-1.5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-semibold"
+                  title={unreadDirectCount === 1 ? "1 mensagem não lida" : `${unreadDirectCount} mensagens não lidas`}
+                >
+                  {unreadDirectCount > 99 ? "99+" : unreadDirectCount}
+                </span>
               )}
             </Button>
           );

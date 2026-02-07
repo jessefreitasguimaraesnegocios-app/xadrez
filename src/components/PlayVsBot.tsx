@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Bot } from "lucide-react";
 import type { BotDifficulty } from "@/lib/chess";
+import { useMyTournaments } from "@/hooks/useMyTournaments";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const DIFFICULTIES: { id: BotDifficulty; label: string; description: string }[] = [
   { id: "easy", label: "Fácil", description: "Jogadas aleatórias" },
@@ -28,8 +30,10 @@ interface PlayVsBotProps {
 const PlayVsBot = ({ onStartGame }: PlayVsBotProps) => {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<BotDifficulty>("normal");
+  const { blocksPlaying, minutesLeft, blockMinutes } = useMyTournaments();
 
   const handleStart = () => {
+    if (blocksPlaying) return;
     onStartGame(selected);
     setOpen(false);
   };
@@ -37,9 +41,20 @@ const PlayVsBot = ({ onStartGame }: PlayVsBotProps) => {
   return (
     <div className="space-y-4">
       <h2 className="font-display font-bold text-xl">Jogar com Bot</h2>
-      <Dialog open={open} onOpenChange={setOpen}>
+      {blocksPlaying && (
+        <Alert className="border-amber-500/50 bg-amber-500/10">
+          <AlertDescription>
+            Seu torneio começa em {minutesLeft} min. Não é possível iniciar partidas nos últimos {blockMinutes} minutos antes do início.
+          </AlertDescription>
+        </Alert>
+      )}
+      <Dialog open={open} onOpenChange={(next) => { if (next && blocksPlaying) return; setOpen(next); }}>
         <DialogTrigger asChild>
-          <Card className="p-4 bg-card border-border hover:border-primary/50 transition-all cursor-pointer group">
+          <Card
+            className={`p-4 bg-card border-border transition-all group ${
+              blocksPlaying ? "opacity-60 cursor-not-allowed" : "hover:border-primary/50 cursor-pointer"
+            }`}
+          >
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-secondary group-hover:bg-primary/20 transition-colors">
                 <Bot className="w-5 h-5 text-muted-foreground group-hover:text-primary" />
@@ -76,7 +91,7 @@ const PlayVsBot = ({ onStartGame }: PlayVsBotProps) => {
             ))}
           </div>
           <DialogFooter>
-            <Button onClick={handleStart}>Iniciar partida</Button>
+            <Button onClick={handleStart} disabled={blocksPlaying}>Iniciar partida</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -5,7 +5,9 @@ import { Clock, Zap, Timer, Infinity, Loader2, X, Wallet } from "lucide-react";
 import { useMatchmaking } from "@/hooks/useMatchmaking";
 import { useAuth } from "@/hooks/useAuth";
 import { useWallet } from "@/hooks/useWallet";
+import { useMyTournaments } from "@/hooks/useMyTournaments";
 import { useNavigate, Link } from "react-router-dom";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const DEFAULT_BET = 5;
 const MIN_BALANCE_TO_BET = 1;
@@ -52,6 +54,7 @@ interface QuickPlayProps {
 const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
   const { user } = useAuth();
   const { balance_available } = useWallet();
+  const { blocksPlaying, minutesLeft, blockMinutes } = useMyTournaments();
   const navigate = useNavigate();
   const { isSearching, matchFound, gameId, joinQueue, leaveQueue } = useMatchmaking();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
@@ -64,6 +67,7 @@ const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
       navigate('/auth');
       return;
     }
+    if (blocksPlaying) return;
     if (balance_available < MIN_BALANCE_TO_BET) {
       navigate('/wallet');
       return;
@@ -116,13 +120,23 @@ const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
           </div>
         </Card>
       ) : (
-        <div className="grid grid-cols-2 gap-4">
-          {gameTypes.map((type) => (
-            <Card
-              key={type.id}
-              className="p-4 bg-card border-border hover:border-primary/50 transition-all cursor-pointer group"
-              onClick={() => handleSelectMode(type)}
-            >
+        <>
+          {blocksPlaying && (
+            <Alert className="border-amber-500/50 bg-amber-500/10">
+              <AlertDescription>
+                Seu torneio começa em {minutesLeft} min. Não é possível entrar em partidas nos últimos {blockMinutes} minutos antes do início.
+              </AlertDescription>
+            </Alert>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            {gameTypes.map((type) => (
+              <Card
+                key={type.id}
+                className={`p-4 bg-card border-border transition-all group ${
+                  blocksPlaying ? "opacity-60 cursor-not-allowed" : "hover:border-primary/50 cursor-pointer"
+                }`}
+                onClick={() => handleSelectMode(type)}
+              >
               <div className="flex items-center gap-3 mb-2">
                 <div className={`p-2 rounded-lg bg-secondary group-hover:bg-primary/20 transition-colors`}>
                   <type.icon className={`w-5 h-5 ${type.color}`} />
@@ -135,7 +149,8 @@ const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
               <p className="text-xs text-muted-foreground">{type.description}</p>
             </Card>
           ))}
-        </div>
+          </div>
+        </>
       )}
 
       {!user && (

@@ -4,6 +4,7 @@ import PromotionDialog from "./PromotionDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RotateCcw } from "lucide-react";
+import { useAppearance } from "@/contexts/AppearanceContext";
 
 interface ChessBoardProps {
   size?: "sm" | "md" | "lg" | "xl";
@@ -19,6 +20,7 @@ interface ChessBoardProps {
 }
 
 const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, onTurnChange, onGameOver, onNewGame, onFirstMove, disabled = false }: ChessBoardProps) => {
+  const { boardTheme, pieceStyle } = useAppearance();
   const {
     gameState,
     selectedSquare,
@@ -123,6 +125,7 @@ const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, on
         <div
           className={cn(
             "grid grid-cols-8 grid-rows-8 rounded-lg overflow-hidden shadow-2xl border-2 border-border",
+            `board-theme-${boardTheme}`,
             sizeClasses[size],
             disabled && "pointer-events-none opacity-80"
           )}
@@ -160,6 +163,7 @@ const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, on
                   <span
                     className={cn(
                       "relative z-10 drop-shadow-lg select-none",
+                      `piece-style-${pieceStyle}`,
                       piece.color === "white"
                         ? "text-foreground"
                         : "text-background"
