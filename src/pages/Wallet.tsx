@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useWallet } from "@/hooks/useWallet";
@@ -46,6 +46,20 @@ const Wallet = () => {
     payload: string;
     paymentId: string;
   } | null>(null);
+
+  const prevBalanceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (walletLoading) return;
+    const current = balance_available;
+    if (prevBalanceRef.current !== null && current > prevBalanceRef.current) {
+      toast({
+        title: "Pagamento aprovado!",
+        description: "Seu saldo foi creditado. O valor já está disponível na sua carteira.",
+      });
+    }
+    prevBalanceRef.current = current;
+  }, [balance_available, walletLoading, toast]);
 
   if (authLoading) {
     return (
