@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const WITHDRAW_MIN = 10;
+const WITHDRAW_MIN = 0.01;
 const WITHDRAW_MAX = 10000;
 const WITHDRAW_DELAY_HOURS = 24;
 const CORS_HEADERS = {

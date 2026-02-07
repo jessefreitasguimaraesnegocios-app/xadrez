@@ -166,11 +166,11 @@ const Wallet = () => {
 
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount.replace(",", "."));
-    if (isNaN(amount) || amount < 10 || amount > 10000) {
+    if (isNaN(amount) || amount < 0.01 || amount > 10000) {
       toast({
         variant: "destructive",
         title: "Valor inválido",
-        description: "Saque deve ser entre R$ 10,00 e R$ 10.000,00.",
+        description: "Saque deve ser entre R$ 0,01 e R$ 10.000,00.",
       });
       return;
     }
@@ -233,6 +233,9 @@ const Wallet = () => {
 
   const formatBRL = (n: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+
+  const statusLabel = (s: string) =>
+    ({ pending_review: "Aguardando confirmação", approved: "Aprovado", processing: "Enviando PIX" })[s] ?? s;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -310,7 +313,9 @@ const Wallet = () => {
                 <Card className="border-border bg-card">
                   <CardHeader>
                     <CardTitle>Saques pendentes</CardTitle>
-                    <CardDescription>Estes saques serão processados em até 24h</CardDescription>
+                    <CardDescription>
+                      Aguardando confirmação. Serão processados (PIX enviado) em até 24h a partir da solicitação.
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ul className="space-y-2">
@@ -321,7 +326,7 @@ const Wallet = () => {
                         >
                           <span className="font-mono">{formatBRL(w.amount)}</span>
                           <span className="text-sm text-muted-foreground">
-                            {new Date(w.scheduled_after).toLocaleString("pt-BR")} • {w.status}
+                            {new Date(w.scheduled_after).toLocaleString("pt-BR")} • {statusLabel(w.status)}
                           </span>
                         </li>
                       ))}
@@ -412,7 +417,7 @@ const Wallet = () => {
           <DialogHeader>
             <DialogTitle>Sacar via PIX</DialogTitle>
             <DialogDescription>
-              Valor entre R$ 10,00 e R$ 10.000,00. Processamento em até 24h.
+              Valor entre R$ 0,01 e R$ 10.000,00. Processamento em até 24h.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -421,7 +426,7 @@ const Wallet = () => {
               <Input
                 id="withdraw-amount"
                 type="number"
-                min={10}
+                min={0.01}
                 max={10000}
                 step={0.01}
                 placeholder="50,00"

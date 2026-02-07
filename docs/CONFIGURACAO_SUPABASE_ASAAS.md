@@ -116,3 +116,44 @@ Para as funções (create-pix-deposit, asaas-webhook, request-withdrawal, proces
 - [ ] (Opcional) Secret `CRON_SECRET` e cron configurado para chamar `process-withdrawal`
 
 Com isso, as configurações do Supabase, dos secrets e do Asaas ficam prontas para depósito PIX, webhook e saque.
+
+---
+
+## 7. Confirmação / processamento dos saques
+
+Os saques ficam com status **Aguardando confirmação** (`pending_review`) até que a Edge Function **`process-withdrawal`** seja executada. Ela:
+
+1. Aprova automaticamente os saques em que já passou o prazo de 24h (`scheduled_after`).
+2. Envia a transferência PIX via Asaas para cada saque aprovado.
+3. Atualiza status para `completed` ou `failed` e a transação na carteira.
+
+**Este projeto já usa cron na Vercel (a cada 1 minuto, para teste):**
+
+- **Vercel:** `vercel.json` define um cron que chama `/api/process-withdrawal` a cada minuto.
+- **API route:** `api/process-withdrawal.ts` chama a Edge Function `process-withdrawal` no Supabase com o header `Authorization: Bearer <CRON_SECRET>`.
+- **Supabase:** o secret `CRON_SECRET` já foi criado com `npx supabase secrets set CRON_SECRET=<valor>`.
+- **Vercel env:** você **precisa** configurar na Vercel a variável **`CRON_SECRET`** com o **mesmo valor** que está no Supabase (Project Settings → Edge Functions → Secrets: copie o valor de `CRON_SECRET` e cole em Vercel → Settings → Environment Variables). Sem isso, o cron não consegue autenticar na Edge Function.
+
+Para mudar a frequência depois (ex.: a cada 15 min), edite em `vercel.json` o campo `schedule` do cron (ex.: `"*/15 * * * *"`).
+
+Sem o `CRON_SECRET` na Vercel ou sem deploy na Vercel, os saques permanecem em "Aguardando confirmação" até alguém chamar `process-withdrawal` manualmente.
+
+---
+
+## 6. Webhook retorna 401 (Unauthorized / Invalid webhook token)
+
+Se o Asaas mostrar **401** ou **"Invalid webhook token"** ao chamar a URL do webhook:
+
+1. **No painel Asaas**  
+   - Vá em **Integrações** → **Webhooks** (ou **Notificações**).  
+   - Edite o webhook que aponta para `.../functions/v1/asaas-webhook`.  
+   - Confira o campo **Token de acesso** / **Token de autenticação**: ele deve ser **exatamente igual** (mesma string, sem espaço no início/fim) ao secret no Supabase.
+
+2. **No Supabase**  
+   - **Project Settings** → **Edge Functions** → **Secrets**.  
+   - O secret **`ASAAS_WEBHOOK_SECRET`** deve ter o **mesmo valor** que você colocou no Asaas.
+
+3. **Depois de alterar**  
+   - Salve nos dois lados.  
+   - Não é necessário fazer redeploy da função; o secret é lido em toda requisição.  
+   - O Asaas tentará de novo na próxima notificação (ou você pode reenviar/testar o webhook no painel do Asaas, se houver opção).

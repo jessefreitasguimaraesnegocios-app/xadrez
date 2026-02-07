@@ -10,8 +10,9 @@ const CORS_HEADERS = {
 };
 
 Deno.serve(async (req: Request) => {
+  // Preflight: resposta exatamente como na doc do Supabase para CORS no browser
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: CORS_HEADERS });
+    return new Response("ok", { status: 200, headers: CORS_HEADERS });
   }
 
   console.log("AUTH HEADER RECEBIDO:", req.headers.get("authorization") ? "presente" : "null");

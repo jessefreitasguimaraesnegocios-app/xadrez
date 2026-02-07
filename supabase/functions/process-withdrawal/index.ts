@@ -144,7 +144,7 @@ Deno.serve(async (req: Request) => {
       .select("id, metadata")
       .eq("user_id", w.user_id)
       .eq("type", "withdraw")
-      .eq("status", "pending_review");
+      .eq("status", "pending");
     for (const tx of txRows || []) {
       const meta = (tx as { metadata?: { withdrawal_id?: string } }).metadata;
       if (meta?.withdrawal_id === w.id) {

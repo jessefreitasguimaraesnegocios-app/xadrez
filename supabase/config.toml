@@ -4,6 +4,14 @@ project_id = "wzairrwkccneltkhgztx"
 # Deixamos a verificação de JWT por conta do código da função (auth.getUser()).
 verify_jwt = false
 
+[functions.request-withdrawal]
+# JWT validado no código da função (auth.getUser()); gateway não bloqueia o request.
+verify_jwt = false
+
+[functions.process-withdrawal]
+# Chamado por cron (Bearer CRON_SECRET); validação no código da função.
+verify_jwt = false
+
 [functions.asaas-webhook]
 # Webhook é chamado pelo Asaas (servidor), não pelo front — não envia JWT do Supabase.
 # Sem isso o gateway retorna 401 "Missing authorization header" antes do handler rodar.

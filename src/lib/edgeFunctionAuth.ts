@@ -44,9 +44,13 @@ export async function invokeEdgeFunction<T = unknown>(
     // ignore
   }
   if (!res.ok) {
+    const obj = data && typeof data === "object" ? (data as { error?: unknown; details?: unknown }) : null;
+    const msg = obj?.error != null ? String(obj.error) : `HTTP ${res.status}`;
+    const detail = obj?.details != null ? String(obj.details) : "";
+    const fullMsg = detail ? `${msg}: ${detail}` : msg;
     return {
       data: data ?? null,
-      error: new Error(data && typeof data === "object" && "error" in data ? String((data as { error?: unknown }).error) : `HTTP ${res.status}`),
+      error: new Error(fullMsg),
     };
   }
   return { data, error: null };

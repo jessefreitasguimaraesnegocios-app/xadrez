@@ -18,15 +18,21 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Asaas envia o token no header "asaas-access-token" (não em Authorization)
-  // Docs: https://docs.asaas.com/docs/receba-eventos-do-asaas-no-seu-endpoint-de-webhook
+  // Asaas envia o token no header "asaas-access-token" (configurar em Integrações > Webhooks no painel Asaas).
+  // No Supabase: Edge Function secret ASAAS_WEBHOOK_SECRET = mesmo valor do "Token de acesso" do webhook.
   const webhookSecret = Deno.env.get("ASAAS_WEBHOOK_SECRET");
   if (webhookSecret) {
     const asaasToken = req.headers.get("asaas-access-token")?.trim() ?? "";
     const bearerToken = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
     const token = asaasToken || bearerToken;
+    if (!token) {
+      return new Response(JSON.stringify({ error: "Missing webhook token. Configure 'Token de acesso' no webhook no painel Asaas." }), {
+        status: 401,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
     if (token !== webhookSecret) {
-      return new Response(JSON.stringify({ error: "Invalid webhook token" }), {
+      return new Response(JSON.stringify({ error: "Invalid webhook token. O token no Asaas deve ser igual ao secret ASAAS_WEBHOOK_SECRET no Supabase." }), {
         status: 401,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });

@@ -1,6 +1,5 @@
--- Atomic withdrawal: SELECT FOR UPDATE, deduct balance, insert withdrawal + transaction in one transaction.
--- Called by request-withdrawal Edge Function only (service role).
-
+-- Fix: transactions table only allows status IN ('pending','completed','failed','cancelled').
+-- request_withdrawal_atomic was inserting 'pending_review', causing 500. Use 'pending' for the transaction.
 CREATE OR REPLACE FUNCTION public.request_withdrawal_atomic(
   p_user_id UUID,
   p_amount DECIMAL(14,2),
@@ -22,7 +21,6 @@ BEGIN
     RETURN;
   END IF;
 
-  -- 1) Lock wallet row
   SELECT w.id, w.balance_available
   INTO v_wallet_id, v_available
   FROM public.wallets w
@@ -37,22 +35,18 @@ BEGIN
     RETURN;
   END IF;
 
-  -- 2) Deduct balance
   UPDATE public.wallets
   SET balance_available = balance_available - p_amount,
       updated_at = now()
   WHERE user_id = p_user_id;
 
-  -- 3) Insert withdrawal
   INSERT INTO public.withdrawals (user_id, amount, status, pix_key, pix_key_type, scheduled_after)
   VALUES (p_user_id, p_amount, 'pending_review', trim(p_pix_key), p_pix_key_type, p_scheduled_after)
   RETURNING public.withdrawals.id INTO v_withdrawal_id;
 
-  -- 4) Insert transaction (status 'pending' - table only allows pending/completed/failed/cancelled)
   INSERT INTO public.transactions (user_id, type, amount, status, metadata)
   VALUES (p_user_id, 'withdraw', -p_amount, 'pending', jsonb_build_object('withdrawal_id', v_withdrawal_id));
 
-  -- 5) Return withdrawal row
   RETURN QUERY
   SELECT w.id, w.status::TEXT, w.scheduled_after
   FROM public.withdrawals w
