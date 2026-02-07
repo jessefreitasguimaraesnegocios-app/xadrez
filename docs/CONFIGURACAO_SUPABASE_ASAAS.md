@@ -129,7 +129,7 @@ Os saques ficam com status **Aguardando confirmação** (`pending_review`) até 
 
 **Este projeto já usa cron na Vercel (a cada 1 minuto, para teste):**
 
-- **Vercel:** `vercel.json` define um cron que chama `/api/process-withdrawal` a cada minuto.
+- **Vercel:** `vercel.json` define um cron que chama `/api/process-withdrawal`. No plano **Hobby** a Vercel só permite 1x por dia (`0 2 * * *` = 2h UTC); no **Pro** você pode usar `*/15 * * * *` (a cada 15 min) ou `*/1 * * * *` (a cada 1 min).
 - **API route:** `api/process-withdrawal.ts` chama a Edge Function `process-withdrawal` no Supabase com o header `Authorization: Bearer <CRON_SECRET>`.
 - **Supabase:** o secret `CRON_SECRET` já foi criado com `npx supabase secrets set CRON_SECRET=<valor>`.
 - **Vercel env:** você **precisa** configurar na Vercel a variável **`CRON_SECRET`** com o **mesmo valor** que está no Supabase (Project Settings → Edge Functions → Secrets: copie o valor de `CRON_SECRET` e cole em Vercel → Settings → Environment Variables). Sem isso, o cron não consegue autenticar na Edge Function.

@@ -1,5 +1,5 @@
 /**
- * Chamado pelo Vercel Cron a cada 1 min (teste). Dispara a Edge Function process-withdrawal no Supabase.
+ * Chamado pelo Vercel Cron (diário no Hobby; no Pro pode ser a cada 1–15 min). Dispara a Edge Function process-withdrawal no Supabase.
  * Repassa CRON_SECRET para o Supabase. Configure CRON_SECRET na Vercel (env) e no Supabase (secrets).
  */
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "";
