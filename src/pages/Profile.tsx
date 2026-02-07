@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,15 +9,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { useAvatarUpload } from '@/hooks/useAvatarUpload';
 import { Camera, Save, Trophy, Target, TrendingUp, TrendingDown, Clock, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Profile = () => {
   const { user, profile, loading, updateProfile } = useAuth();
   const { toast } = useToast();
+  const { handleAvatarUpload, uploading } = useAvatarUpload();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
   const [bio, setBio] = useState(profile?.bio || '');
@@ -34,61 +34,6 @@ const Profile = () => {
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
-
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: 'Por favor, selecione uma imagem válida.',
-      });
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: 'A imagem deve ter no máximo 2MB.',
-      });
-      return;
-    }
-
-    setUploading(true);
-
-    try {
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${user.id}/avatar.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      await updateProfile({ avatar_url: publicUrl });
-
-      toast({
-        title: 'Avatar atualizado!',
-        description: 'Seu avatar foi atualizado com sucesso.',
-      });
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao enviar avatar',
-        description: 'Tente novamente mais tarde.',
-      });
-    } finally {
-      setUploading(false);
-    }
-  };
 
   const handleSave = async () => {
     setIsSaving(true);

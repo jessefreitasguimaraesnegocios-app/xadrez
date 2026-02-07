@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useWallet } from "@/hooks/useWallet";
+import { useUnreadDirectCount } from "@/hooks/useUnreadDirectCount";
+import { useAvatarUpload } from "@/hooks/useAvatarUpload";
 import { useNavigate, Link } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -15,6 +17,7 @@ import {
   Crown,
   LogIn,
   Wallet,
+  Camera,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -34,6 +37,8 @@ const menuItems = [
 const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
   const { user, profile, signOut, loading } = useAuth();
   const { balance_available } = useWallet();
+  const unreadDirectCount = useUnreadDirectCount();
+  const { handleAvatarUpload, uploading } = useAvatarUpload();
   const navigate = useNavigate();
   const pathname = window.location.pathname;
   const isWalletPage = pathname === "/wallet";
@@ -70,22 +75,39 @@ const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
           </div>
         ) : user && profile ? (
           <div className="flex flex-col gap-1">
-            <Link to="/profile" className="block">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors cursor-pointer">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors">
+              <div className="relative shrink-0 group">
                 <Avatar className="w-10 h-10 ring-2 ring-primary">
                   <AvatarImage src={profile.avatar_url || undefined} />
                   <AvatarFallback className="bg-primary text-primary-foreground font-bold">
                     {profile.username.slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">{profile.display_name || profile.username}</p>
-                  <p className="text-xs text-sidebar-foreground/60">
-                    {profile.elo_rating} ELO • {profile.wins}V/{profile.losses}D
-                  </p>
-                </div>
+                <label
+                  className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity"
+                  title="Alterar foto"
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarUpload}
+                    disabled={uploading}
+                  />
+                  {uploading ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                  ) : (
+                    <Camera className="w-5 h-5 text-white" />
+                  )}
+                </label>
               </div>
-            </Link>
+              <Link to="/profile" className="flex-1 min-w-0">
+                <p className="font-medium text-sm truncate">{profile.display_name || profile.username}</p>
+                <p className="text-xs text-sidebar-foreground/60">
+                  {profile.elo_rating} ELO • {profile.wins}V/{profile.losses}D
+                </p>
+              </Link>
+            </div>
             <Link to="/wallet" className="block px-3 pb-1 text-xs font-medium text-accent hover:underline">
               Saldo: R$ {Number(balance_available).toFixed(2)}
             </Link>
@@ -130,14 +152,20 @@ const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
               variant="ghost"
               onClick={() => (isWalletPage ? navigate("/") : onTabChange(item.id))}
               className={cn(
-                "w-full justify-start gap-3 h-11 font-medium",
+                "w-full justify-start gap-3 h-11 font-medium relative",
                 isActive
                   ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent"
               )}
             >
-              <item.icon className="w-5 h-5" />
-              {item.label}
+              <item.icon className="w-5 h-5 shrink-0" />
+              <span className="flex-1 text-left">{item.label}</span>
+              {item.id === "friends" && unreadDirectCount > 0 && (
+                <span
+                  className="absolute right-3 w-2 h-2 rounded-full bg-destructive"
+                  title={`${unreadDirectCount} mensagem(ns) não lida(s)`}
+                />
+              )}
             </Button>
           );
         })}

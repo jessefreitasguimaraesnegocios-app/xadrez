@@ -14,6 +14,7 @@ import { UserPlus, Swords, MessageCircle, Search, Check, X, Loader2 } from "luci
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import FriendChatPanel from "@/components/FriendChatPanel";
 
 type ProfileRow = {
   user_id: string;
@@ -37,6 +38,7 @@ const FriendsList = () => {
   const [loading, setLoading] = useState(true);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [chatFriend, setChatFriend] = useState<(ProfileRow & { friendshipId: string }) | null>(null);
 
   const myUserId = user?.id ?? null;
 
@@ -182,6 +184,7 @@ const FriendsList = () => {
       return;
     }
     toast({ title: "Aceito!", description: "Agora vocês são amigos." });
+    await loadFriendsAndPending();
   };
 
   const handleDecline = async (friendshipId: string) => {
@@ -193,6 +196,7 @@ const FriendsList = () => {
       return;
     }
     toast({ title: "Solicitação recusada." });
+    await loadFriendsAndPending();
   };
 
   const handleInviteToGame = (friendName: string) => {
@@ -362,7 +366,11 @@ const FriendsList = () => {
               .map((friend) => (
                 <div
                   key={friend.friendshipId}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-secondary transition-colors group"
+                  role="button"
+                  tabIndex={0}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-secondary transition-colors group cursor-pointer"
+                  onClick={() => setChatFriend(friend)}
+                  onKeyDown={(e) => e.key === "Enter" && setChatFriend(friend)}
                 >
                   <div className="relative">
                     <Avatar className="w-10 h-10">
@@ -388,12 +396,23 @@ const FriendsList = () => {
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8"
-                      onClick={() => handleInviteToGame(displayName(friend))}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleInviteToGame(displayName(friend));
+                      }}
                       disabled={!friend.is_online}
                     >
                       <Swords className="w-4 h-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setChatFriend(friend);
+                      }}
+                    >
                       <MessageCircle className="w-4 h-4" />
                     </Button>
                   </div>
@@ -402,6 +421,18 @@ const FriendsList = () => {
           )}
         </div>
       </ScrollArea>
+
+      {chatFriend && (
+        <FriendChatPanel
+          friend={{
+            user_id: chatFriend.user_id,
+            username: chatFriend.username,
+            display_name: chatFriend.display_name,
+            avatar_url: chatFriend.avatar_url,
+          }}
+          onClose={() => setChatFriend(null)}
+        />
+      )}
     </div>
   );
 };
