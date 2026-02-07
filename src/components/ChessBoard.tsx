@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { useChessGame, pieceSymbols, Square, type BotDifficulty } from "@/lib/chess";
+import { playMoveSound, playCaptureSound } from "@/lib/sound";
 import PromotionDialog from "./PromotionDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,13 @@ const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, on
     handlePromotion,
     cancelPromotion,
     resetGame,
-  } = useChessGame({ botDifficulty, onTurnChange, onGameOver, onFirstMove });
+  } = useChessGame({
+    botDifficulty,
+    onTurnChange,
+    onGameOver,
+    onFirstMove,
+    onMoveSound: (wasCapture) => (wasCapture ? playCaptureSound() : playMoveSound()),
+  });
 
   const handleNewGame = () => {
     resetGame();

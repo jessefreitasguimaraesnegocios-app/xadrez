@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Flag, RotateCcw, Bot, Maximize2, Minimize2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { BotDifficulty } from "@/lib/chess";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +38,7 @@ const GameView = ({
 }: GameViewProps) => {
   const { profile } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [showBetting, setShowBetting] = useState(withBetting && !isBotGame);
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [isGameOver, setIsGameOver] = useState(false);
@@ -153,14 +155,14 @@ const GameView = ({
   return (
     <div
       className={cn(
-        "flex flex-col lg:flex-row gap-6",
-        isFullscreen && "fixed inset-0 z-50 bg-background p-4 overflow-auto"
+        "flex flex-col lg:flex-row gap-4 lg:gap-6",
+        isFullscreen && "fixed inset-0 z-50 bg-background p-2 sm:p-4 overflow-auto"
       )}
     >
       {/* Main Game Area */}
-      <div className="flex-1 space-y-4">
+      <div className="flex-1 space-y-3 lg:space-y-4 min-w-0">
         {/* Opponent Info */}
-        <Card className="p-4 bg-card border-border">
+        <Card className={cn("bg-card border-border", isMobile ? "p-3" : "p-4")}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10">
@@ -188,9 +190,9 @@ const GameView = ({
         </Card>
 
         {/* Chess Board */}
-        <div className={cn("flex justify-center py-4", isFullscreen && "flex-1 items-center")}>
+        <div className={cn("flex justify-center py-2 lg:py-4", isFullscreen && "flex-1 items-center")}>
           <ChessBoard
-            size={isFullscreen ? "xl" : "lg"}
+            size={isFullscreen ? "xl" : isMobile ? "xl" : "lg"}
             botDifficulty={botDifficulty}
             onTurnChange={handleTurnChange}
             onGameOver={() => setIsGameOver(true)}
@@ -201,7 +203,7 @@ const GameView = ({
         </div>
 
         {/* Player Info */}
-        <Card className="p-4 bg-card border-border">
+        <Card className={cn("bg-card border-border", isMobile ? "p-3" : "p-4")}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10 ring-2 ring-primary">
@@ -241,7 +243,7 @@ const GameView = ({
         </Card>
 
         {/* Game Controls */}
-        <div className="flex flex-wrap gap-2">
+        <div className={cn("flex flex-wrap gap-2", isMobile && "gap-2")}>
           <Button
             variant="outline"
             size="icon"

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Clock, AlertTriangle } from 'lucide-react';
+import { playTimerWarningSound } from '@/lib/sound';
 
 interface GameTimerProps {
   initialTime: number; // in seconds
@@ -67,6 +68,18 @@ const GameTimer = ({ initialTime, isActive, isPlayer, onTimeUp, className }: Gam
 
   const isLowTime = timeLeft <= 30;
   const isCriticalTime = timeLeft <= 10;
+
+  // Alerta de tempo baixo: um beep por segundo quando ativo e ≤10s
+  const timeLeftRef = useRef(timeLeft);
+  timeLeftRef.current = timeLeft;
+  useEffect(() => {
+    if (!isActive || !isCriticalTime) return;
+    const id = setInterval(() => {
+      if (timeLeftRef.current <= 0) return;
+      playTimerWarningSound();
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isActive, isCriticalTime]);
 
   return (
     <div

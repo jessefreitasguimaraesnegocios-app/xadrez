@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import Sidebar from "@/components/Sidebar";
+import { MobileHeader } from "@/components/MobileHeader";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { SidebarContent } from "@/components/SidebarContent";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import GameStats from "@/components/GameStats";
 import DashboardTournaments from "@/components/DashboardTournaments";
 import RankingList from "@/components/RankingList";
@@ -14,11 +19,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { BotDifficulty } from "@/lib/chess";
 
 const Index = () => {
   const { profile } = useAuth();
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBotGame, setIsBotGame] = useState(false);
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty | null>(null);
@@ -48,36 +56,39 @@ const Index = () => {
     setBotDifficulty(null);
   };
 
-  return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-      
-      <main className="flex-1 p-6 overflow-auto">
+  const mainContent = (
+    <main
+      className={
+        isMobile
+          ? "flex-1 p-4 pb-24 overflow-auto min-h-0 safe-area-inset-bottom"
+          : "flex-1 p-6 overflow-auto"
+      }
+    >
         {activeTab === "dashboard" && (
-          <div className="space-y-6 max-w-7xl mx-auto">
+          <div className={cn("space-y-4 md:space-y-6 max-w-7xl mx-auto", isMobile && "space-y-4")}>
             <div>
-              <h1 className="font-display font-bold text-3xl mb-2">
+              <h1 className="font-display font-bold text-2xl sm:text-3xl mb-1 sm:mb-2 truncate">
                 Bem-vindo{profile ? `, ${profile.display_name || profile.username}` : ''}!
               </h1>
-              <p className="text-muted-foreground">Pronto para uma partida?</p>
+              <p className="text-muted-foreground text-sm sm:text-base">Pronto para uma partida?</p>
             </div>
 
             <GameStats />
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <Card className="p-6 bg-card border-border">
+            <div className={cn("grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6", isMobile && "gap-4")}>
+              <div className="lg:col-span-2 space-y-4 lg:space-y-6">
+                <Card className={cn("bg-card border-border", isMobile ? "p-4" : "p-6")}>
                   <QuickPlay onStartGame={handleStartGame} />
                 </Card>
                 
                 <DashboardTournaments />
               </div>
 
-              <div className="space-y-6">
-                <Card className="p-6 bg-card border-border">
+              <div className={cn("space-y-4 lg:space-y-6", isMobile && "space-y-4")}>
+                <Card className={cn("bg-card border-border", isMobile ? "p-4" : "p-6")}>
                   <RankingList variant="compact" limit={5} />
                 </Card>
-                <Card className="p-6 bg-card border-border">
+                <Card className={cn("bg-card border-border", isMobile ? "p-4" : "p-6")}>
                   <FriendsList onStartGame={handleStartGame} />
                 </Card>
               </div>
@@ -239,7 +250,33 @@ const Index = () => {
             </Tabs>
           </div>
         )}
-      </main>
+    </main>
+  );
+
+  return (
+    <div className={isMobile ? "flex flex-col min-h-screen bg-background" : "flex min-h-screen bg-background"}>
+      {!isMobile && <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />}
+      {isMobile && <MobileHeader onMenuClick={() => setMobileMenuOpen(true)} />}
+      {mainContent}
+      {isMobile && (
+        <>
+          <MobileBottomNav
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onMenuClick={() => setMobileMenuOpen(true)}
+          />
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetContent side="left" className="p-0 w-[280px] max-w-[85vw] border-sidebar-border">
+              <SidebarContent
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                onItemClick={() => setMobileMenuOpen(false)}
+                touchFriendly
+              />
+            </SheetContent>
+          </Sheet>
+        </>
+      )}
     </div>
   );
 };

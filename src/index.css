@@ -187,6 +187,14 @@
   filter: brightness(1.05);
 }
 
+/* Safe area for notched devices (mobile) */
+.safe-area-inset-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -195,6 +203,13 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Roboto', sans-serif;
+  }
+
+  /* Touch-friendly: remove tap highlight on mobile */
+  @media (max-width: 767px) {
+    button, a, [role="button"] {
+      -webkit-tap-highlight-color: transparent;
+    }
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -237,5 +252,9 @@
 
   .glow-accent {
     box-shadow: 0 0 20px hsl(var(--accent) / 0.3);
+  }
+
+  .touch-manipulation {
+    touch-action: manipulation;
   }
 }

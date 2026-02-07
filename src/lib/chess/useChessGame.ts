@@ -46,6 +46,8 @@ export interface UseChessGameOptions {
   onGameOver?: () => void;
   /** Called once when the first move is played (white). */
   onFirstMove?: () => void;
+  /** Called after each move; wasCapture true if a piece was taken. */
+  onMoveSound?: (wasCapture: boolean) => void;
 }
 
 export const useChessGame = (options?: UseChessGameOptions) => {
@@ -53,12 +55,17 @@ export const useChessGame = (options?: UseChessGameOptions) => {
   const onTurnChange = options?.onTurnChange;
   const onGameOver = options?.onGameOver;
   const onFirstMove = options?.onFirstMove;
+  const onMoveSound = options?.onMoveSound;
   const [gameState, setGameState] = useState<GameState>(createInitialState);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [legalMoves, setLegalMoves] = useState<Square[]>([]);
   const [promotionPending, setPromotionPending] = useState<{ from: Square; to: Square } | null>(null);
   const botScheduled = useRef(false);
   const onFirstMoveCalled = useRef(false);
+  const gameStateRef = useRef(gameState);
+  const onMoveSoundRef = useRef(onMoveSound);
+  gameStateRef.current = gameState;
+  onMoveSoundRef.current = onMoveSound;
 
   const selectSquare = useCallback((square: Square) => {
     const piece = getPieceAt(gameState.board, square);
@@ -117,11 +124,15 @@ export const useChessGame = (options?: UseChessGameOptions) => {
   }, [gameState, selectedSquare, legalMoves]);
 
   const executeMove = useCallback((from: Square, to: Square, promotion?: PieceType) => {
-    setGameState(prev => {
-      const piece = getPieceAt(prev.board, from);
-      if (!piece) return prev;
+    const prevBoard = gameStateRef.current.board;
+    const piece = getPieceAt(prevBoard, from);
+    if (!piece) return;
+    const captured = getPieceAt(prevBoard, to);
 
-      const captured = getPieceAt(prev.board, to);
+    setGameState(prev => {
+      const p = getPieceAt(prev.board, from);
+      if (!p) return prev;
+      const cap = getPieceAt(prev.board, to);
       let newBoard = makeMoveOnBoard(prev.board, from, to);
       
       // Handle promotion
@@ -167,11 +178,11 @@ export const useChessGame = (options?: UseChessGameOptions) => {
       const move: Move = {
         from,
         to,
-        piece,
-        captured: captured || undefined,
+        piece: p,
+        captured: cap || undefined,
         promotion,
-        isEnPassant: piece.type === 'pawn' && from.col !== to.col && !captured,
-        isCastling: piece.type === 'king' && Math.abs(from.col - to.col) === 2
+        isEnPassant: p.type === 'pawn' && from.col !== to.col && !cap,
+        isCastling: p.type === 'king' && Math.abs(from.col - to.col) === 2
           ? (to.col > from.col ? 'kingside' : 'queenside')
           : undefined,
         isCheck: check,
@@ -183,7 +194,7 @@ export const useChessGame = (options?: UseChessGameOptions) => {
         currentTurn: nextTurn,
         castlingRights: newCastlingRights,
         enPassantTarget,
-        halfMoveClock: piece.type === 'pawn' || captured ? 0 : prev.halfMoveClock + 1,
+        halfMoveClock: p.type === 'pawn' || cap ? 0 : prev.halfMoveClock + 1,
         fullMoveNumber: prev.currentTurn === 'black' ? prev.fullMoveNumber + 1 : prev.fullMoveNumber,
         isCheck: check,
         isCheckmate: checkmate,
@@ -196,6 +207,7 @@ export const useChessGame = (options?: UseChessGameOptions) => {
     setSelectedSquare(null);
     setLegalMoves([]);
     setPromotionPending(null);
+    onMoveSoundRef.current?.(!!captured);
   }, []);
 
   const handlePromotion = useCallback((pieceType: PieceType) => {
