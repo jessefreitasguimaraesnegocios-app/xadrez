@@ -69,10 +69,13 @@ Deno.serve(async (req: Request) => {
       .update({ status: "processing", processed_at: new Date().toISOString() })
       .eq("id", w.id);
 
-    const transferPayload = {
+    const transferPayload: Record<string, unknown> = {
       value: Number(w.amount),
-      pixAddressKey: w.pix_key,
+      pixAddressKey: ["CPF", "CNPJ", "PHONE"].includes(w.pix_key_type)
+        ? String(w.pix_key).replace(/\D/g, "")
+        : String(w.pix_key),
       pixAddressKeyType: w.pix_key_type,
+      description: `Saque ChessBet - R$ ${w.amount}`,
     };
     const transferRes = await fetch(`${asaasBaseUrl}/transfers`, {
       method: "POST",

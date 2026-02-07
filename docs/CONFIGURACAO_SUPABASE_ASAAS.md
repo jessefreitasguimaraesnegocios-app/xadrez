@@ -127,16 +127,24 @@ Os saques ficam com status **Aguardando confirmação** (`pending_review`) até 
 2. Envia a transferência PIX via Asaas para cada saque aprovado.
 3. Atualiza status para `completed` ou `failed` e a transação na carteira.
 
-**Este projeto já usa cron na Vercel (a cada 1 minuto, para teste):**
+**Duas formas de disparar o processamento (escolha uma ou use as duas):**
 
-- **Vercel:** `vercel.json` define um cron que chama `/api/process-withdrawal`. No plano **Hobby** a Vercel só permite 1x por dia (`0 2 * * *` = 2h UTC); no **Pro** você pode usar `*/15 * * * *` (a cada 15 min) ou `*/1 * * * *` (a cada 1 min).
-- **API route:** `api/process-withdrawal.ts` chama a Edge Function `process-withdrawal` no Supabase com o header `Authorization: Bearer <CRON_SECRET>`.
-- **Supabase:** o secret `CRON_SECRET` já foi criado com `npx supabase secrets set CRON_SECRET=<valor>`.
-- **Vercel env:** você **precisa** configurar na Vercel a variável **`CRON_SECRET`** com o **mesmo valor** que está no Supabase (Project Settings → Edge Functions → Secrets: copie o valor de `CRON_SECRET` e cole em Vercel → Settings → Environment Variables). Sem isso, o cron não consegue autenticar na Edge Function.
+**A) GitHub Actions (recomendado, gratuito, a cada 1 min):**
 
-Para mudar a frequência depois (ex.: a cada 15 min), edite em `vercel.json` o campo `schedule` do cron (ex.: `"*/15 * * * *"`).
+- O workflow `.github/workflows/process-withdrawal.yml` roda **a cada 1 minuto** e chama a Edge Function no Supabase.
+- **Configure o secret no GitHub:** no repositório → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → nome **`CRON_SECRET`**, valor = **o mesmo** que está no Supabase (Edge Functions → Secrets). Sem esse secret, o workflow falha com 401.
+- (Opcional) Se o projeto Supabase for outro, crie também o secret **`SUPABASE_URL`** com a URL base, ex.: `https://SEU_PROJECT_REF.supabase.co`.
+- Para rodar à mão: **Actions** → **Process withdrawal (PIX)** → **Run workflow**.
+- Para mudar a frequência: edite no arquivo o `cron`, ex.: `"0 2 * * *"` (1x/dia).
 
-Sem o `CRON_SECRET` na Vercel ou sem deploy na Vercel, os saques permanecem em "Aguardando confirmação" até alguém chamar `process-withdrawal` manualmente.
+**B) Vercel (1x por dia no plano Hobby):**
+
+- `vercel.json` está com `0 2 * * *` (uma vez por dia às 2h UTC) para o deploy não falhar no Hobby.
+- Configure **`CRON_SECRET`** na Vercel (Environment Variables) com o mesmo valor do Supabase. A API `api/process-withdrawal.ts` repassa esse token para a Edge Function.
+
+**Supabase:** o secret **`CRON_SECRET`** já foi criado com `npx supabase secrets set CRON_SECRET=<valor>`. Use esse mesmo valor no GitHub (e na Vercel, se usar o cron da Vercel).
+
+Sem nenhum disparo (Actions ou Vercel) configurado, os saques ficam em "Aguardando confirmação" até alguém chamar `process-withdrawal` manualmente (Supabase Dashboard → Edge Functions → Invoke).
 
 ---
 

@@ -3,7 +3,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const WITHDRAW_MIN = 0.01;
 const WITHDRAW_MAX = 10000;
-const WITHDRAW_DELAY_HOURS = 24;
+/** 0 = elegível na hora; com cron diário (Hobby) o PIX sai no próximo ciclo (até ~24h). */
+const WITHDRAW_DELAY_HOURS = 0;
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",

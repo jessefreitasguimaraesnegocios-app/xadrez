@@ -213,7 +213,7 @@ const Wallet = () => {
       if (data?.error) throw new Error(data.error);
       toast({
         title: "Saque solicitado",
-        description: `Processamento em até 24h. Data prevista: ${data.scheduledAfter ? new Date(data.scheduledAfter).toLocaleString("pt-BR") : "-"}`,
+        description: `Saque solicitado. PIX enviado em até 24h (processamento automático diário). Data prevista: ${data.scheduledAfter ? new Date(data.scheduledAfter).toLocaleString("pt-BR") : "-"}`,
       });
       setWithdrawOpen(false);
       setWithdrawAmount("");
@@ -314,7 +314,7 @@ const Wallet = () => {
                   <CardHeader>
                     <CardTitle>Saques pendentes</CardTitle>
                     <CardDescription>
-                      Aguardando confirmação. Serão processados (PIX enviado) em até 24h a partir da solicitação.
+                      Aguardando processamento. O PIX será enviado automaticamente (processamento uma vez por dia no servidor).
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -417,7 +417,7 @@ const Wallet = () => {
           <DialogHeader>
             <DialogTitle>Sacar via PIX</DialogTitle>
             <DialogDescription>
-              Valor entre R$ 0,01 e R$ 10.000,00. Processamento em até 24h.
+              Valor entre R$ 0,01 e R$ 10.000,00. PIX processado automaticamente em até 24h.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

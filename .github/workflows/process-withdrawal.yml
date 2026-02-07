@@ -1,0 +1,29 @@
+# Chama a Edge Function process-withdrawal no Supabase para processar saques PIX.
+# Roda a cada 1 minuto (gratuito no GitHub Actions). Para produção, altere o schedule para "0 2 * * *" (1x/dia).
+name: Process withdrawal (PIX)
+
+on:
+  schedule:
+    - cron: "*/1 * * * *"
+  workflow_dispatch: # permite rodar manualmente em Actions → Process withdrawal → Run workflow
+
+jobs:
+  call-process-withdrawal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar process-withdrawal
+        run: |
+          URL="${SUPABASE_URL:-https://wzairrwkccneltkhgztx.supabase.co}/functions/v1/process-withdrawal"
+          echo "POST $URL"
+          res=$(curl -sS -w "\n%{http_code}" -X POST "$URL" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          code=$(echo "$res" | tail -n1)
+          body=$(echo "$res" | sed '$d')
+          echo "Response ($code): $body"
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            exit 1
+          fi
+        env:
+          # Opcional: se definir SUPABASE_URL nos secrets, usa esse; senão usa o projeto abaixo.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
