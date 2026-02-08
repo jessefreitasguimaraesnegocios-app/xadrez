@@ -129,9 +129,9 @@ Os saques ficam com status **Aguardando confirmação** (`pending_review`) até 
 
 **Duas formas de disparar o processamento (escolha uma ou use as duas):**
 
-**A) GitHub Actions (recomendado, gratuito, a cada 1 min):**
+**A) GitHub Actions (recomendado, gratuito, a cada 5 min):**
 
-- O workflow `.github/workflows/process-withdrawal.yml` roda **a cada 1 minuto** e chama a Edge Function no Supabase.
+- O workflow `.github/workflows/process-withdrawal.yml` roda **a cada 5 minutos** (mínimo permitido pelo GitHub) e chama a Edge Function no Supabase.
 - **Configure o secret no GitHub:** no repositório → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → nome **`CRON_SECRET`**, valor = **o mesmo** que está no Supabase (Edge Functions → Secrets). Sem esse secret, o workflow falha com 401.
 - (Opcional) Se o projeto Supabase for outro, crie também o secret **`SUPABASE_URL`** com a URL base, ex.: `https://SEU_PROJECT_REF.supabase.co`.
 - Para rodar à mão: **Actions** → **Process withdrawal (PIX)** → **Run workflow**.
@@ -145,6 +145,12 @@ Os saques ficam com status **Aguardando confirmação** (`pending_review`) até 
 **Supabase:** o secret **`CRON_SECRET`** já foi criado com `npx supabase secrets set CRON_SECRET=<valor>`. Use esse mesmo valor no GitHub (e na Vercel, se usar o cron da Vercel).
 
 Sem nenhum disparo (Actions ou Vercel) configurado, os saques ficam em "Aguardando confirmação" até alguém chamar `process-withdrawal` manualmente (Supabase Dashboard → Edge Functions → Invoke).
+
+**Como conferir se o cron está atuando**
+
+1. **GitHub:** Abra **Actions** → **Process withdrawal (PIX)**. Veja se há execuções (a cada 5 min ou após um "Run workflow"). Clique em uma execução → no step "Chamar process-withdrawal" deve aparecer algo como `Response (200): {"processed":1,"total":1}` ou `{"processed":0,"message":"No withdrawals to process"}`. Se aparecer **401**, o `CRON_SECRET` no GitHub está diferente do Supabase.
+2. **Por que ainda não mudou no app?** A função só processa saques em que **`scheduled_after` já passou** (data/hora no passado). Saques criados quando o delay era 24h têm `scheduled_after` = solicitação + 24h; até essa data passar, eles não são aprovados. Para testar agora: no **Supabase** → **Table Editor** → tabela **`withdrawals`**, edite os saques pendentes e coloque **`scheduled_after`** em uma data/hora **no passado** (ex.: ontem). Na próxima execução do workflow (ou ao clicar em "Run workflow") eles serão aprovados e o PIX enviado.
+3. **Teste imediato:** Em **Actions** → **Process withdrawal (PIX)** → **Run workflow** → **Run workflow**. Depois de ~30 s, abra a execução e veja o "Response". No app, atualize a página da Carteira; os saques processados saem da lista de pendentes e o PIX é enviado para a chave cadastrada.
 
 ---
 

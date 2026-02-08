@@ -1,10 +1,10 @@
 # Chama a Edge Function process-withdrawal no Supabase para processar saques PIX.
-# Roda a cada 1 minuto (gratuito no GitHub Actions). Para produção, altere o schedule para "0 2 * * *" (1x/dia).
+# Roda a cada 5 min (mínimo do GitHub Actions para schedule). Para produção: "0 2 * * *" (1x/dia). Manual: Run workflow.
 name: Process withdrawal (PIX)
 
 on:
   schedule:
-    - cron: "*/1 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch: # permite rodar manualmente em Actions → Process withdrawal → Run workflow
 
 jobs:

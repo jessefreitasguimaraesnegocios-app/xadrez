@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Wallet as WalletIcon, ArrowDownCircle, ArrowUpCircle, Copy, Loader2 } from "lucide-react";
+import { Wallet as WalletIcon, ArrowDownCircle, ArrowUpCircle, Copy, Loader2, XCircle } from "lucide-react";
 
 const Wallet = () => {
   const navigate = useNavigate();
@@ -41,6 +41,7 @@ const Wallet = () => {
   const [pixKeyType, setPixKeyType] = useState("EVP");
   const [depositLoading, setDepositLoading] = useState(false);
   const [withdrawLoading, setWithdrawLoading] = useState(false);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [depositResult, setDepositResult] = useState<{
     qrCodeBase64: string;
     payload: string;
@@ -211,10 +212,25 @@ const Wallet = () => {
       );
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast({
-        title: "Saque solicitado",
-        description: `Saque solicitado. PIX enviado em até 24h (processamento automático diário). Data prevista: ${data.scheduledAfter ? new Date(data.scheduledAfter).toLocaleString("pt-BR") : "-"}`,
-      });
+
+      const { data: processData } = await invokeEdgeFunction<{ processed?: number; error?: string }>(
+        refreshed,
+        "process-my-withdrawals",
+        {}
+      );
+      const processed = processData?.processed ?? 0;
+
+      if (processed > 0) {
+        toast({
+          title: "PIX enviado",
+          description: "O valor foi enviado para sua chave PIX. Deve chegar em instantes.",
+        });
+      } else {
+        toast({
+          title: "Saque solicitado",
+          description: `Será processado em breve. Data prevista: ${data.scheduledAfter ? new Date(data.scheduledAfter).toLocaleString("pt-BR") : "-"}`,
+        });
+      }
       setWithdrawOpen(false);
       setWithdrawAmount("");
       setPixKey("");
@@ -228,6 +244,33 @@ const Wallet = () => {
       });
     } finally {
       setWithdrawLoading(false);
+    }
+  };
+
+  const canCancelWithdrawal = (status: string) => status === "pending_review" || status === "approved";
+
+  const handleCancelWithdrawal = async (withdrawalId: string) => {
+    setCancelingId(withdrawalId);
+    try {
+      const { data: { session: refreshed }, error: sessionError } = await supabase.auth.refreshSession();
+      if (sessionError || !refreshed?.access_token) {
+        toast({ variant: "destructive", title: "Sessão expirada", description: "Faça login novamente." });
+        return;
+      }
+      const { data, error } = await invokeEdgeFunction<{ ok?: boolean; error?: string }>(
+        refreshed,
+        "cancel-withdrawal",
+        { withdrawalId }
+      );
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: "Saque cancelado", description: "O valor foi devolvido ao seu saldo disponível." });
+      refetch();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Erro ao cancelar saque";
+      toast({ variant: "destructive", title: "Erro", description: msg });
+    } finally {
+      setCancelingId(null);
     }
   };
 
@@ -322,12 +365,32 @@ const Wallet = () => {
                       {pendingWithdrawals.map((w) => (
                         <li
                           key={w.id}
-                          className="flex justify-between items-center py-2 border-b border-border last:border-0"
+                          className="flex justify-between items-center gap-2 py-2 border-b border-border last:border-0"
                         >
-                          <span className="font-mono">{formatBRL(w.amount)}</span>
-                          <span className="text-sm text-muted-foreground">
-                            {new Date(w.scheduled_after).toLocaleString("pt-BR")} • {statusLabel(w.status)}
-                          </span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-mono">{formatBRL(w.amount)}</span>
+                            <span className="text-sm text-muted-foreground">
+                              {new Date(w.scheduled_after).toLocaleString("pt-BR")} • {statusLabel(w.status)}
+                            </span>
+                          </div>
+                          {canCancelWithdrawal(w.status) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              disabled={cancelingId === w.id}
+                              onClick={() => handleCancelWithdrawal(w.id)}
+                            >
+                              {cancelingId === w.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <XCircle className="w-4 h-4 mr-1" />
+                                  Cancelar
+                                </>
+                              )}
+                            </Button>
+                          )}
                         </li>
                       ))}
                     </ul>

@@ -8,6 +8,14 @@ verify_jwt = false
 # JWT validado no código da função (auth.getUser()); gateway não bloqueia o request.
 verify_jwt = false
 
+[functions.cancel-withdrawal]
+# JWT validado no código da função (auth.getUser()).
+verify_jwt = false
+
+[functions.process-my-withdrawals]
+# Chamado pelo app após solicitar saque (JWT); processa PIX do usuário na hora.
+verify_jwt = false
+
 [functions.process-withdrawal]
 # Chamado por cron (Bearer CRON_SECRET); validação no código da função.
 verify_jwt = false
