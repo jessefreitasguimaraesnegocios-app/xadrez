@@ -29,90 +29,98 @@ function getContext(): AudioContext | null {
   }
 }
 
+/** Volume geral dos sons de madeira (aumentado para audibilidade). */
+const WOOD_VOLUME = 2.2;
+
 /**
- * Som de "toc" de madeira: tom grave + decay rápido + leve ruído de impacto.
+ * Som de "toc" de madeira: peça no tabuleiro de madeira — tom grave, corpo ressonante, ruído de impacto.
  */
 function playWoodTap(options: { intensity?: number; double?: boolean }) {
   const ctx = getContext();
   if (!ctx) return;
-  const intensity = Math.max(0.15, Math.min(1, options.intensity ?? 0.5));
+  const intensity = Math.max(0.2, Math.min(1, options.intensity ?? 0.55));
   const double = options.double ?? false;
 
   try {
     const now = ctx.currentTime;
+    const master = ctx.createGain();
+    master.gain.value = WOOD_VOLUME;
+    master.connect(ctx.destination);
 
-    // Tom grave (corpo da madeira) — frequência baixa, decay rápido
+    // Tom grave (corpo da madeira) — mais grave, decay um pouco mais longo
     const osc = ctx.createOscillator();
     const oscGain = ctx.createGain();
     const lowpass = ctx.createBiquadFilter();
     lowpass.type = "lowpass";
-    lowpass.frequency.value = 400;
-    lowpass.Q.value = 0.5;
-    osc.type = "sine";
-    osc.frequency.value = 120 + intensity * 40;
+    lowpass.frequency.value = 380;
+    lowpass.Q.value = 0.8;
+    osc.type = "triangle";
+    osc.frequency.value = 95 + intensity * 35;
     osc.connect(oscGain);
     oscGain.connect(lowpass);
-    lowpass.connect(ctx.destination);
+    lowpass.connect(master);
     oscGain.gain.setValueAtTime(0, now);
-    oscGain.gain.linearRampToValueAtTime(intensity * 0.25, now + 0.008);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    oscGain.gain.linearRampToValueAtTime(intensity * 0.48, now + 0.012);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
     osc.start(now);
-    osc.stop(now + 0.07);
+    osc.stop(now + 0.1);
 
-    // Ruído curto de impacto (madeira batendo)
-    const bufferSize = ctx.sampleRate * 0.03;
+    // Ruído de impacto (madeira batendo) — mais presente, filtro em “toc” de madeira
+    const bufferSize = ctx.sampleRate * 0.04;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+      const env = 1 - (i / bufferSize) * (i / bufferSize);
+      data[i] = (Math.random() * 2 - 1) * env;
     }
     const noise = ctx.createBufferSource();
     noise.buffer = buffer;
     const noiseFilter = ctx.createBiquadFilter();
     noiseFilter.type = "lowpass";
-    noiseFilter.frequency.value = 800;
+    noiseFilter.frequency.value = 1100;
+    noiseFilter.Q.value = 0.6;
     const noiseGain = ctx.createGain();
     noise.connect(noiseFilter);
     noiseFilter.connect(noiseGain);
-    noiseGain.connect(ctx.destination);
-    noiseGain.gain.setValueAtTime(intensity * 0.08, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
+    noiseGain.connect(master);
+    noiseGain.gain.setValueAtTime(intensity * 0.2, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
     noise.start(now);
-    noise.stop(now + 0.03);
+    noise.stop(now + 0.04);
 
     if (double) {
-      const t2 = now + 0.06;
+      const t2 = now + 0.065;
       const osc2 = ctx.createOscillator();
       const osc2Gain = ctx.createGain();
       const lp2 = ctx.createBiquadFilter();
       lp2.type = "lowpass";
-      lp2.frequency.value = 350;
-      osc2.type = "sine";
-      osc2.frequency.value = 90;
+      lp2.frequency.value = 320;
+      osc2.type = "triangle";
+      osc2.frequency.value = 75;
       osc2.connect(osc2Gain);
       osc2Gain.connect(lp2);
-      lp2.connect(ctx.destination);
+      lp2.connect(master);
       osc2Gain.gain.setValueAtTime(0, t2);
-      osc2Gain.gain.linearRampToValueAtTime(intensity * 0.2, t2 + 0.01);
-      osc2Gain.gain.exponentialRampToValueAtTime(0.001, t2 + 0.08);
+      osc2Gain.gain.linearRampToValueAtTime(intensity * 0.42, t2 + 0.014);
+      osc2Gain.gain.exponentialRampToValueAtTime(0.001, t2 + 0.1);
       osc2.start(t2);
-      osc2.stop(t2 + 0.09);
+      osc2.stop(t2 + 0.11);
     }
   } catch {
     // fallback silencioso
   }
 }
 
-/** Som de movimento de peça (não captura) — um toc de madeira. */
+/** Som de movimento de peça (não captura) — toc de madeira, peça no tabuleiro. */
 export function playMoveSound() {
   if (!shouldPlaySound(getSetting("settings_sound", true), getSetting("settings_move_sound", true))) return;
-  playWoodTap({ intensity: 0.5 });
+  playWoodTap({ intensity: 0.6 });
 }
 
-/** Som de captura — toc mais forte, como peça batendo e sendo retirada. */
+/** Som de captura — toc mais forte, peça batendo e sendo retirada (madeira). */
 export function playCaptureSound() {
   if (!shouldPlaySound(getSetting("settings_sound", true), getSetting("settings_capture_sound", true))) return;
-  playWoodTap({ intensity: 0.85, double: true });
+  playWoodTap({ intensity: 0.95, double: true });
 }
 
 /** Alerta de tempo baixo — toc de madeira mais agudo e perceptível. */
