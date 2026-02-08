@@ -27,6 +27,8 @@ interface GameViewProps {
   timeControl?: number; // in seconds (e.g., 600 for 10 minutes)
   isBotGame?: boolean;
   botDifficulty?: BotDifficulty | null;
+  /** When playing vs bot: which color the human plays. Default white. */
+  botPlayerColor?: "white" | "black";
 }
 
 const GameView = ({
@@ -35,6 +37,7 @@ const GameView = ({
   timeControl = 600,
   isBotGame = false,
   botDifficulty = null,
+  botPlayerColor = "white",
 }: GameViewProps) => {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -92,8 +95,9 @@ const GameView = ({
   }, [isGameOver]);
 
   const handleTurnChange = useCallback((turn: "white" | "black") => {
-    setIsPlayerTurn(turn === "white");
-  }, []);
+    const playerColor = isBotGame ? botPlayerColor : "white";
+    setIsPlayerTurn(turn === playerColor);
+  }, [isBotGame, botPlayerColor]);
 
   const handleFirstMove = useCallback(() => {
     setHasClockStarted(true);
@@ -113,10 +117,14 @@ const GameView = ({
   useEffect(() => {
     preGameTimeUpFired.current = false;
     setIsGameOver(false);
-    setIsPlayerTurn(true);
-    setHasClockStarted(false);
+    setIsPlayerTurn(isBotGame ? botPlayerColor === "white" : true);
     setPreGameCountdown(30);
-  }, [isBotGame, botDifficulty]);
+    if (isBotGame && botPlayerColor === "black") {
+      setHasClockStarted(true);
+    } else {
+      setHasClockStarted(false);
+    }
+  }, [isBotGame, botDifficulty, botPlayerColor]);
 
   // Pre-game: 30s to make first move; if time runs out, cancel game
   useEffect(() => {
@@ -182,7 +190,7 @@ const GameView = ({
             <GameTimer
               key={`opponent-timer-${timerResetKey}`}
               initialTime={opponentTime}
-              isActive={hasClockStarted && !isGameOver && !isPlayerTurn}
+              isActive={hasClockStarted && !isGameOver && !isPlayerTurn && !isBotGame}
               isPlayer={false}
               onTimeUp={handleOpponentTimeUp}
             />
@@ -190,10 +198,11 @@ const GameView = ({
         </Card>
 
         {/* Chess Board */}
-        <div className={cn("flex justify-center py-2 lg:py-4", isFullscreen && "flex-1 items-center")}>
+        <div className={cn("flex justify-center py-2 lg:py-4 w-full", isFullscreen && "flex-1 items-center")}>
           <ChessBoard
             size={isFullscreen ? "xl" : isMobile ? "xl" : "lg"}
             botDifficulty={botDifficulty}
+            botPlayerColor={isBotGame ? botPlayerColor : undefined}
             onTurnChange={handleTurnChange}
             onGameOver={() => setIsGameOver(true)}
             onNewGame={handleNewGame}

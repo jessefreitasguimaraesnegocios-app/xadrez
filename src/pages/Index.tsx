@@ -39,6 +39,8 @@ const Index = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBotGame, setIsBotGame] = useState(false);
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty | null>(null);
+  const [botTimeControl, setBotTimeControl] = useState<number>(600);
+  const [botPlayerColor, setBotPlayerColor] = useState<"white" | "black">("white");
   const [gameKey, setGameKey] = useState(0);
   const [matchmakingGameId, setMatchmakingGameId] = useState<string | null>(null);
 
@@ -51,9 +53,11 @@ const Index = () => {
     setActiveTab("play");
   };
 
-  const handleStartBotGame = (difficulty: BotDifficulty) => {
+  const handleStartBotGame = (difficulty: BotDifficulty, timeControlSeconds: number, playerColor: "white" | "black") => {
     setIsBotGame(true);
     setBotDifficulty(difficulty);
+    setBotTimeControl(timeControlSeconds);
+    setBotPlayerColor(playerColor);
     setGameKey((k) => k + 1);
     setIsPlaying(true);
     setActiveTab("play");
@@ -126,6 +130,8 @@ const Index = () => {
                   withBetting={!isBotGame}
                   isBotGame={isBotGame}
                   botDifficulty={botDifficulty}
+                  botPlayerColor={isBotGame ? botPlayerColor : undefined}
+                  timeControl={isBotGame ? botTimeControl : undefined}
                 />
               </div>
             ) : (

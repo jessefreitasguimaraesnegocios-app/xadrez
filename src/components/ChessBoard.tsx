@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { useChessGame, pieceSymbols, Square, type BotDifficulty } from "@/lib/chess";
+import { useChessGame, pieceSymbols, Square, type BotDifficulty, type PieceType } from "@/lib/chess";
 import { playMoveSound, playCaptureSound } from "@/lib/sound";
 import PromotionDialog from "./PromotionDialog";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,8 @@ interface ChessBoardProps {
   size?: "sm" | "md" | "lg" | "xl";
   showControls?: boolean;
   botDifficulty?: BotDifficulty | null;
+  /** When playing vs bot: which color the human plays. Board is flipped when black. */
+  botPlayerColor?: "white" | "black";
   onTurnChange?: (turn: "white" | "black") => void;
   onGameOver?: () => void;
   onNewGame?: () => void;
@@ -20,8 +22,10 @@ interface ChessBoardProps {
   disabled?: boolean;
 }
 
-const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, onTurnChange, onGameOver, onNewGame, onFirstMove, disabled = false }: ChessBoardProps) => {
+const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, botPlayerColor, onTurnChange, onGameOver, onNewGame, onFirstMove, disabled = false }: ChessBoardProps) => {
   const { boardTheme, pieceStyle } = useAppearance();
+  const playerColor = botPlayerColor ?? "white";
+  const flip = playerColor === "black";
   const {
     gameState,
     selectedSquare,
@@ -33,6 +37,7 @@ const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, on
     resetGame,
   } = useChessGame({
     botDifficulty,
+    playerColor,
     onTurnChange,
     onGameOver,
     onFirstMove,
@@ -45,34 +50,54 @@ const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, on
   };
 
   const sizeClasses = {
-    sm: "w-64 h-64 shrink-0",
-    md: "w-[400px] h-[400px] shrink-0",
-    lg: "w-[560px] h-[560px] shrink-0",
-    xl: "w-[min(80vmin,800px)] aspect-square max-w-full shrink-0",
+    sm: "w-72 h-72 shrink-0",
+    md: "w-[420px] h-[420px] shrink-0",
+    lg: "w-[600px] h-[600px] shrink-0",
+    xl: "w-full aspect-square max-w-[800px] min-w-0 shrink-0",
   };
 
   const squareSize = {
-    sm: "w-8 h-8 text-xl",
-    md: "w-[50px] h-[50px] text-3xl",
-    lg: "w-[70px] h-[70px] text-4xl",
-    xl: "w-full h-full min-w-0 min-h-0 text-4xl sm:text-5xl",
+    sm: "w-9 h-9 text-2xl",
+    md: "w-[52px] h-[52px] text-3xl",
+    lg: "w-[75px] h-[75px] text-4xl",
+    xl: "w-full h-full min-w-0 min-h-0 text-[min(5rem,12vw)] sm:text-5xl",
   };
 
-  const handleSquareClick = (row: number, col: number) => {
+  /** Peças capturadas = 75% do tamanho da peça no tabuleiro */
+  const capturedPieceSizeClass = {
+    sm: "text-[1.125rem]",
+    md: "text-[1.4rem]",
+    lg: "text-[1.69rem]",
+    xl: "text-[min(3.75rem,9vw)] sm:text-[2.25rem]",
+  }[size];
+
+  const toGame = (displayRow: number, displayCol: number): Square =>
+    flip ? { row: 7 - displayRow, col: displayCol } : { row: displayRow, col: displayCol };
+  const toDisplay = (gameRow: number, gameCol: number) =>
+    flip ? { row: 7 - gameRow, col: gameCol } : { row: gameRow, col: gameCol };
+
+  const handleSquareClick = (displayRow: number, displayCol: number) => {
     if (disabled) return;
     if (gameState.isCheckmate || gameState.isStalemate) return;
-    if (botDifficulty && gameState.currentTurn === "black") return;
+    if (botDifficulty && gameState.currentTurn !== playerColor) return;
+    const { row, col } = toGame(displayRow, displayCol);
     selectSquare({ row, col });
   };
 
   const isLightSquare = (row: number, col: number) => (row + col) % 2 === 0;
-  const isSelected = (row: number, col: number) => 
-    selectedSquare?.row === row && selectedSquare?.col === col;
-  const isLegalMove = (row: number, col: number) => 
-    legalMoves.some((m) => m.row === row && m.col === col);
-  const isLastMove = (row: number, col: number) => {
+  const isSelected = (displayRow: number, displayCol: number) => {
+    if (!selectedSquare) return false;
+    const d = toDisplay(selectedSquare.row, selectedSquare.col);
+    return d.row === displayRow && d.col === displayCol;
+  };
+  const isLegalMove = (displayRow: number, displayCol: number) => {
+    const { row, col } = toGame(displayRow, displayCol);
+    return legalMoves.some((m) => m.row === row && m.col === col);
+  };
+  const isLastMove = (displayRow: number, displayCol: number) => {
     const lastMove = gameState.moveHistory[gameState.moveHistory.length - 1];
     if (!lastMove) return false;
+    const { row, col } = toGame(displayRow, displayCol);
     return (
       (lastMove.from.row === row && lastMove.from.col === col) ||
       (lastMove.to.row === row && lastMove.to.col === col)
@@ -80,10 +105,55 @@ const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, on
   };
 
   const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
-  const ranks = ["8", "7", "6", "5", "4", "3", "2", "1"];
+  const ranks = flip ? ["1", "2", "3", "4", "5", "6", "7", "8"] : ["8", "7", "6", "5", "4", "3", "2", "1"];
+
+  const pieceTypeOrder: PieceType[] = ["pawn", "knight", "bishop", "rook", "queen"];
+  const capturedByWhite = (gameState.moveHistory ?? [])
+    .filter((m) => m.piece?.color === "white" && m.captured)
+    .map((m) => m.captured!);
+  const capturedByBlack = (gameState.moveHistory ?? [])
+    .filter((m) => m.piece?.color === "black" && m.captured)
+    .map((m) => m.captured!);
+
+  const countByType = (list: { type: PieceType }[]) => {
+    const c: Record<PieceType, number> = { pawn: 0, knight: 0, bishop: 0, rook: 0, queen: 0, king: 0 };
+    list.forEach((p) => { if (p.type !== "king") c[p.type]++; });
+    return c;
+  };
+
+  const CapturedRow = ({ pieces, pieceColor, pieceSizeClass }: { pieces: { type: PieceType; color: "white" | "black" }[]; pieceColor: "white" | "black"; pieceSizeClass: string }) => {
+    const counts = countByType(pieces);
+    const textClass = pieceColor === "white" ? "text-foreground" : "text-black";
+    const outlineClass = pieceColor === "white" ? "captured-outline-dark" : "captured-outline-white";
+    return (
+      <div className="flex flex-wrap items-center gap-0.5">
+        {pieceTypeOrder.map((type) => {
+          const n = counts[type];
+          if (n === 0) return null;
+          const symbol = pieceSymbols[type][pieceColor];
+          const maxIcons = type === "pawn" ? 2 : Math.min(n, 2);
+          const showNumber = n > 2 || (type === "pawn" && n > 2);
+          return (
+            <div key={type} className="relative inline-flex items-center justify-center gap-0.5">
+              {Array.from({ length: maxIcons }, (_, i) => (
+                <span key={i} className={cn("leading-none", pieceSizeClass, textClass, outlineClass, `piece-style-${pieceStyle}`)}>
+                  {symbol}
+                </span>
+              ))}
+              {showNumber && (
+                <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 text-[9px] sm:text-[10px] font-medium tabular-nums text-muted-foreground">
+                  {n}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className={cn("flex flex-col items-center gap-4", size === "xl" && "w-full max-w-full")}>
       {/* Game Status */}
       {showControls && (
         <div className="flex items-center gap-4">
@@ -114,47 +184,43 @@ const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, on
         </div>
       )}
 
-      <div className="relative inline-block">
-        {/* Rank labels */}
-        <div className="absolute -left-6 top-0 h-full flex flex-col justify-around text-muted-foreground text-sm font-medium">
-          {ranks.map((rank) => (
-            <span key={rank}>{rank}</span>
-          ))}
-        </div>
-
-        {/* File labels */}
-        <div className="absolute -bottom-6 left-0 w-full flex justify-around text-muted-foreground text-sm font-medium">
-          {files.map((file) => (
-            <span key={file}>{file}</span>
-          ))}
-        </div>
-
-        <div
-          className={cn(
-            "grid grid-cols-8 grid-rows-8 rounded-lg overflow-hidden shadow-2xl border-2 border-border",
-            `board-theme-${boardTheme}`,
-            sizeClasses[size],
-            disabled && "pointer-events-none opacity-80"
-          )}
-        >
-          {gameState.board.map((row, rowIndex) =>
-            row.map((piece, colIndex) => (
+      <div className={cn("relative inline-block", size === "xl" && "w-full max-w-[800px]")}>
+        {/* Grid + rank labels (wrapper para labels acompanharem só a altura do tabuleiro) */}
+        <div className="relative inline-block">
+          <div className="absolute -left-6 top-0 h-full flex flex-col justify-around text-muted-foreground text-sm font-medium">
+            {ranks.map((rank) => (
+              <span key={rank}>{rank}</span>
+            ))}
+          </div>
+          <div
+            className={cn(
+              "grid grid-cols-8 grid-rows-8 rounded-lg overflow-hidden shadow-2xl border-2 border-border",
+              `board-theme-${boardTheme}`,
+              sizeClasses[size],
+              disabled && "pointer-events-none opacity-80"
+            )}
+          >
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((displayRow) =>
+            [0, 1, 2, 3, 4, 5, 6, 7].map((displayCol) => {
+              const { row: gr, col: gc } = toGame(displayRow, displayCol);
+              const piece = gameState.board[gr][gc];
+              return (
               <button
-                key={`${rowIndex}-${colIndex}`}
-                onClick={() => handleSquareClick(rowIndex, colIndex)}
+                key={`${displayRow}-${displayCol}`}
+                onClick={() => handleSquareClick(displayRow, displayCol)}
                 className={cn(
                   squareSize[size],
                   "flex items-center justify-center transition-all duration-150 cursor-pointer relative",
-                  isLightSquare(rowIndex, colIndex)
+                  isLightSquare(displayRow, displayCol)
                     ? "chess-square-light"
                     : "chess-square-dark",
-                  isSelected(rowIndex, colIndex) && "chess-square-highlight",
-                  isLastMove(rowIndex, colIndex) && "chess-square-last-move",
+                  isSelected(displayRow, displayCol) && "chess-square-highlight",
+                  isLastMove(displayRow, displayCol) && "chess-square-last-move",
                   "hover:brightness-110"
                 )}
               >
                 {/* Legal move indicator */}
-                {isLegalMove(rowIndex, colIndex) && (
+                {isLegalMove(displayRow, displayCol) && (
                   <div
                     className={cn(
                       "absolute rounded-full",
@@ -180,8 +246,23 @@ const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, on
                   </span>
                 )}
               </button>
-            ))
+            );
+            })
           )}
+          </div>
+        </div>
+
+        {/* File labels: rente ao tabuleiro */}
+        <div className="mt-0.5 w-full flex justify-around text-muted-foreground text-sm font-medium">
+          {files.map((file) => (
+            <span key={file}>{file}</span>
+          ))}
+        </div>
+
+        {/* Peças capturadas: abaixo das letras, maior 1 passo */}
+        <div className="mt-2 w-[31.25%] min-w-0 flex flex-col gap-1">
+          <CapturedRow pieces={capturedByWhite} pieceColor="black" pieceSizeClass={capturedPieceSizeClass} />
+          <CapturedRow pieces={capturedByBlack} pieceColor="white" pieceSizeClass={capturedPieceSizeClass} />
         </div>
       </div>
 

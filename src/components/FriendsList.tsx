@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWallet } from "@/hooks/useWallet";
 import { useGameInvites, type GameInviteWithFrom } from "@/hooks/useGameInvites";
 import { useMyTournaments } from "@/hooks/useMyTournaments";
+import { useUnreadBySender } from "@/hooks/useUnreadBySender";
 import { supabase } from "@/integrations/supabase/client";
 import FriendChatPanel from "@/components/FriendChatPanel";
 
@@ -136,6 +137,7 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [chatFriend, setChatFriend] = useState<(ProfileRow & { friendshipId: string }) | null>(null);
+  const unreadBySender = useUnreadBySender();
 
   const myUserId = user?.id ?? null;
 
@@ -599,6 +601,11 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
                       {friend.elo_rating} ELO • {friend.is_online ? "Online" : "Offline"}
                     </p>
                   </div>
+                  {unreadBySender[friend.user_id] > 0 && (
+                    <span className="notification-badge min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-semibold shrink-0">
+                      {unreadBySender[friend.user_id] > 99 ? "99+" : unreadBySender[friend.user_id]}
+                    </span>
+                  )}
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button
                       size="icon"

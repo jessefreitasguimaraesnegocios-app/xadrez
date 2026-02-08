@@ -49,7 +49,7 @@ export function MobileBottomNav({ activeTab, onTabChange, onMenuClick, className
             <span className="relative inline-flex">
               <Icon className="w-6 h-6" />
               {showBadge && (
-                <span className="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground">
+                <span className="notification-badge absolute -top-1 -right-2 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}

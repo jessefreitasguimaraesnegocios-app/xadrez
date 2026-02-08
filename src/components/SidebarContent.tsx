@@ -183,7 +183,7 @@ export function SidebarContent({ activeTab, onTabChange, onItemClick, touchFrien
                   <item.icon className="w-5 h-5 shrink-0" />
                   <span className="flex-1 text-left">{item.label}</span>
                   {item.id === "friends" && unreadDirectCount > 0 && (
-                    <span className="min-w-[18px] h-[18px] px-1.5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-semibold">
+                    <span className="notification-badge min-w-[18px] h-[18px] px-1.5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-semibold">
                       {unreadDirectCount > 99 ? "99+" : unreadDirectCount}
                     </span>
                   )}

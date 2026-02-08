@@ -42,6 +42,8 @@ const createInitialState = (): GameState => ({
 
 export interface UseChessGameOptions {
   botDifficulty?: BotDifficulty | null;
+  /** When playing vs bot: which color the human plays. Bot plays the opposite. Default white. */
+  playerColor?: PieceColor;
   onTurnChange?: (turn: PieceColor) => void;
   onGameOver?: () => void;
   /** Called once when the first move is played (white). */
@@ -52,6 +54,8 @@ export interface UseChessGameOptions {
 
 export const useChessGame = (options?: UseChessGameOptions) => {
   const botDifficulty = options?.botDifficulty ?? null;
+  const playerColor = options?.playerColor ?? 'white';
+  const botColor: PieceColor = playerColor === 'white' ? 'black' : 'white';
   const onTurnChange = options?.onTurnChange;
   const onGameOver = options?.onGameOver;
   const onFirstMove = options?.onFirstMove;
@@ -242,7 +246,7 @@ export const useChessGame = (options?: UseChessGameOptions) => {
   useEffect(() => {
     if (
       !botDifficulty ||
-      gameState.currentTurn !== 'black' ||
+      gameState.currentTurn !== botColor ||
       gameState.isCheckmate ||
       gameState.isStalemate ||
       promotionPending ||
@@ -256,7 +260,7 @@ export const useChessGame = (options?: UseChessGameOptions) => {
       if (move) executeMove(move.from, move.to, move.promotion);
     }, 350);
     return () => clearTimeout(t);
-  }, [botDifficulty, gameState, promotionPending, executeMove]);
+  }, [botDifficulty, botColor, gameState, promotionPending, executeMove]);
 
   const resetGame = useCallback(() => {
     botScheduled.current = false;

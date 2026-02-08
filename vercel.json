@@ -1,8 +1,8 @@
 {
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
   "crons": [
-    {
-      "path": "/api/process-withdrawal",
-      "schedule": "0 2 * * *"
-    }
+    { "path": "/api/process-withdrawal", "schedule": "0 2 * * *" }
   ]
 }

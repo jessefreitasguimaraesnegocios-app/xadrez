@@ -257,4 +257,27 @@
   .touch-manipulation {
     touch-action: manipulation;
   }
+
+  /* Badge de notificação: pulse + brilho leve para chamar atenção */
+  @keyframes notification-pulse {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.5);
+    }
+    50% {
+      opacity: 0.95;
+      box-shadow: 0 0 8px 2px hsl(var(--destructive) / 0.6);
+    }
+  }
+  .notification-badge {
+    animation: notification-pulse 1.5s ease-in-out infinite;
+  }
+
+  /* Contorno das peças capturadas para não misturar com o fundo */
+  .captured-outline-white {
+    text-shadow: -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white, 1px 1px 0 white;
+  }
+  .captured-outline-dark {
+    text-shadow: -1px -1px 0 hsl(220, 18%, 8%), 1px -1px 0 hsl(220, 18%, 8%), -1px 1px 0 hsl(220, 18%, 8%), 1px 1px 0 hsl(220, 18%, 8%);
+  }
 }
