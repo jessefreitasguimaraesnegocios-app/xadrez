@@ -1,0 +1,17 @@
+---
+description: Executar comandos (npx, npm, etc.) para fazer o trabalho; usuário faz o mínimo.
+alwaysApply: true
+---
+
+# Executar tudo via comandos
+
+- Sempre que for preciso fazer algo que envolva ferramentas (deploy, build, migrações, testes, etc.), **execute você mesmo** os comandos necessários.
+- Use **npx** quando fizer sentido (ex.: `npx supabase functions deploy`, `npx prisma migrate`).
+- Use o shell/terminal disponível; não peça ao usuário que rode comandos manualmente.
+- Objetivo: o usuário faz o **mínimo possível**; você faz o que for necessário (código + comandos).
+
+Exemplos do que você deve fazer:
+- Deploy de Edge Functions: rodar `npx supabase functions deploy ...`
+- Instalar deps: rodar `npm install` ou `pnpm install`
+- Rodar migrações, testes, build, lint — executar os comandos no projeto
+- No Windows/PowerShell: evitar `&&`; usar `;` para encadear comandos quando precisar

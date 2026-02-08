@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import Sidebar from "@/components/Sidebar";
 import { MobileHeader } from "@/components/MobileHeader";
@@ -24,8 +25,16 @@ import type { BotDifficulty } from "@/lib/chess";
 
 const Index = () => {
   const { profile } = useAuth();
+  const location = useLocation();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState("dashboard");
+
+  useEffect(() => {
+    const tab = (location.state as { tab?: string } | null)?.tab;
+    if (tab && ["dashboard", "play", "tournaments", "friends", "betting"].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [location.state]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBotGame, setIsBotGame] = useState(false);

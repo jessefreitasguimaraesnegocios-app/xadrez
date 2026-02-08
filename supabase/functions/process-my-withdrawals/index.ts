@@ -7,6 +7,41 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+async function refundWithdrawal(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  withdrawalId: string,
+  amount: string | number,
+  failureReason: string,
+) {
+  const { data: wallet } = await supabase.from("wallets").select("balance_available").eq("user_id", userId).single();
+  if (wallet) {
+    await supabase
+      .from("wallets")
+      .update({
+        balance_available: Number(wallet.balance_available) + Number(amount),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", userId);
+  }
+  await supabase
+    .from("withdrawals")
+    .update({ status: "failed", failure_reason: failureReason })
+    .eq("id", withdrawalId);
+  const { data: txRows } = await supabase
+    .from("transactions")
+    .select("id, metadata")
+    .eq("user_id", userId)
+    .eq("type", "withdraw");
+  for (const tx of txRows || []) {
+    const meta = (tx as { metadata?: { withdrawal_id?: string } }).metadata;
+    if (meta?.withdrawal_id === withdrawalId) {
+      await supabase.from("transactions").update({ status: "cancelled" }).eq("id", tx.id);
+      break;
+    }
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: CORS_HEADERS });
@@ -47,12 +82,12 @@ Deno.serve(async (req: Request) => {
 
     const nowIso = new Date().toISOString();
 
+    // Aprovar todos os pending_review do usuário (chamada autenticada = usuário quer processar na hora)
     await supabase
       .from("withdrawals")
       .update({ status: "approved" })
       .eq("user_id", userId)
-      .eq("status", "pending_review")
-      .lte("scheduled_after", nowIso);
+      .eq("status", "pending_review");
 
     const { data: rows, error: listErr } = await supabase
       .from("withdrawals")
@@ -60,7 +95,6 @@ Deno.serve(async (req: Request) => {
       .eq("user_id", userId)
       .is("asaas_transfer_id", null)
       .eq("status", "approved")
-      .lte("scheduled_after", nowIso)
       .order("scheduled_after", { ascending: true })
       .limit(10);
 
@@ -104,27 +138,15 @@ Deno.serve(async (req: Request) => {
       const asaasTransferId = transferData.id ?? transferData.transferId ?? null;
 
       if (!transferRes.ok || !asaasTransferId) {
-        const { data: wallet } = await supabase
-          .from("wallets")
-          .select("balance_available")
-          .eq("user_id", w.user_id)
-          .single();
-        if (wallet) {
-          await supabase
-            .from("wallets")
-            .update({
-              balance_available: Number(wallet.balance_available) + Number(w.amount),
-              updated_at: new Date().toISOString(),
-            })
-            .eq("user_id", w.user_id);
-        }
-        await supabase
-          .from("withdrawals")
-          .update({
-            status: "failed",
-            failure_reason: transferData.errors?.[0]?.description ?? JSON.stringify(transferData),
-          })
-          .eq("id", w.id);
+        await refundWithdrawal(supabase, w.user_id, w.id, w.amount, transferData.errors?.[0]?.description ?? JSON.stringify(transferData));
+        continue;
+      }
+
+      const getRes = await fetch(`${asaasBaseUrl}/transfers/${asaasTransferId}`, { headers: asaasHeaders });
+      const getData = (await getRes.json().catch(() => ({}))) as { status?: string };
+      const asaasStatus = String(getData?.status ?? "").toUpperCase();
+      if (["FAILED", "CANCELLED", "CANCELED", "BLOCKED"].includes(asaasStatus)) {
+        await refundWithdrawal(supabase, w.user_id, w.id, w.amount, `Asaas status: ${asaasStatus}`);
         continue;
       }
 
@@ -138,24 +160,7 @@ Deno.serve(async (req: Request) => {
         .eq("id", w.id);
 
       if (updateErr) {
-        const { data: wallet } = await supabase
-          .from("wallets")
-          .select("balance_available")
-          .eq("user_id", w.user_id)
-          .single();
-        if (wallet) {
-          await supabase
-            .from("wallets")
-            .update({
-              balance_available: Number(wallet.balance_available) + Number(w.amount),
-              updated_at: new Date().toISOString(),
-            })
-            .eq("user_id", w.user_id);
-        }
-        await supabase
-          .from("withdrawals")
-          .update({ status: "failed", failure_reason: "Failed to save asaas_transfer_id" })
-          .eq("id", w.id);
+        await refundWithdrawal(supabase, w.user_id, w.id, w.amount, "Failed to save asaas_transfer_id");
         continue;
       }
 

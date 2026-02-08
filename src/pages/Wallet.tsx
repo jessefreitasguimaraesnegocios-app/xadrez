@@ -60,7 +60,8 @@ const Wallet = () => {
       });
     }
     prevBalanceRef.current = current;
-  }, [balance_available, walletLoading, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast ref estável; omitir evita reexecução em todo render
+  }, [balance_available, walletLoading]);
 
   if (authLoading) {
     return (
@@ -212,6 +213,10 @@ const Wallet = () => {
       );
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+
+      toast({ title: "Saque solicitado", description: "Processando PIX em instantes..." });
+
+      await new Promise((r) => setTimeout(r, 4000));
 
       const { data: processData } = await invokeEdgeFunction<{ processed?: number; error?: string }>(
         refreshed,

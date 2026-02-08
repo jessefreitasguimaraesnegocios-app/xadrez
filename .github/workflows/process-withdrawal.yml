@@ -1,15 +1,17 @@
-# Chama a Edge Function process-withdrawal no Supabase para processar saques PIX.
-# Roda a cada 5 min (mínimo do GitHub Actions para schedule). Para produção: "0 2 * * *" (1x/dia). Manual: Run workflow.
+# Chama process-withdrawal e sync-failed-withdrawals no Supabase (saques PIX + devolver saldo se falhou no Asaas).
+# Roda a cada 5 min. Manual: Run workflow.
 name: Process withdrawal (PIX)
 
 on:
   schedule:
     - cron: "*/5 * * * *"
-  workflow_dispatch: # permite rodar manualmente em Actions → Process withdrawal → Run workflow
+  workflow_dispatch:
 
 jobs:
   call-process-withdrawal:
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
     steps:
       - name: Chamar process-withdrawal
         run: |
@@ -24,6 +26,16 @@ jobs:
           if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
             exit 1
           fi
-        env:
-          # Opcional: se definir SUPABASE_URL nos secrets, usa esse; senão usa o projeto abaixo.
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      - name: Chamar sync-failed-withdrawals
+        run: |
+          URL="${SUPABASE_URL:-https://wzairrwkccneltkhgztx.supabase.co}/functions/v1/sync-failed-withdrawals"
+          echo "POST $URL"
+          res=$(curl -sS -w "\n%{http_code}" -X POST "$URL" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          code=$(echo "$res" | tail -n1)
+          body=$(echo "$res" | sed '$d')
+          echo "Response ($code): $body"
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            exit 1
+          fi

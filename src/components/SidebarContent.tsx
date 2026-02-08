@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWallet } from "@/hooks/useWallet";
 import { useUnreadDirectCount } from "@/hooks/useUnreadDirectCount";
 import { useAvatarUpload } from "@/hooks/useAvatarUpload";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import {
   LayoutDashboard,
   Swords,
@@ -44,7 +44,7 @@ export function SidebarContent({ activeTab, onTabChange, onItemClick, touchFrien
   const unreadDirectCount = useUnreadDirectCount();
   const { handleAvatarUpload, uploading } = useAvatarUpload();
   const navigate = useNavigate();
-  const pathname = window.location.pathname;
+  const { pathname } = useLocation();
   const isWalletPage = pathname === "/wallet";
 
   const handleSignOut = async () => {
@@ -56,8 +56,10 @@ export function SidebarContent({ activeTab, onTabChange, onItemClick, touchFrien
   const handleNav = (itemId: string) => {
     if (itemId === "wallet") {
       navigate("/wallet");
-    } else {
+    } else if (pathname === "/") {
       onTabChange(itemId);
+    } else {
+      navigate("/", { state: { tab: itemId } });
     }
     onItemClick?.();
   };

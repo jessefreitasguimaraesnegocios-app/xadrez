@@ -20,6 +20,10 @@ verify_jwt = false
 # Chamado por cron (Bearer CRON_SECRET); validação no código da função.
 verify_jwt = false
 
+[functions.sync-failed-withdrawals]
+# Sincroniza saques marcados completed com status no Asaas; devolve saldo se transferência falhou. Cron (Bearer CRON_SECRET).
+verify_jwt = false
+
 [functions.asaas-webhook]
 # Webhook é chamado pelo Asaas (servidor), não pelo front — não envia JWT do Supabase.
 # Sem isso o gateway retorna 401 "Missing authorization header" antes do handler rodar.
