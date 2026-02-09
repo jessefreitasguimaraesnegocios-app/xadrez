@@ -6,6 +6,43 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/** Normaliza a chave PIX para o formato esperado pelo Asaas (CPF/CNPJ sem pontuação, PHONE 11 dígitos). */
+function normalizePixKeyForAsaas(
+  key: string,
+  type: string,
+): { key: string } | { error: string } {
+  const t = String(type).toUpperCase();
+  const digits = String(key).replace(/\D/g, "");
+  if (t === "CPF") {
+    if (digits.length !== 11) return { error: "CPF deve ter 11 dígitos" };
+    return { key: digits };
+  }
+  if (t === "CNPJ") {
+    if (digits.length !== 14) return { error: "CNPJ deve ter 14 dígitos" };
+    return { key: digits };
+  }
+  if (t === "PHONE") {
+    if (digits.length === 10) {
+      // Celular: DDD (2) + 9 + 8 dígitos = 11
+      const withNine = digits.slice(0, 2) + "9" + digits.slice(2);
+      return { key: withNine };
+    }
+    if (digits.length !== 11) return { error: "Telefone deve ter 10 ou 11 dígitos (com DDD)" };
+    return { key: digits };
+  }
+  if (t === "EMAIL") {
+    const trimmed = String(key).trim();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return { error: "E-mail inválido" };
+    return { key: trimmed };
+  }
+  if (t === "EVP") {
+    const trimmed = String(key).trim().replace(/\s/g, "");
+    if (!trimmed) return { error: "Chave EVP não pode ser vazia" };
+    return { key: trimmed };
+  }
+  return { error: `Tipo de chave não suportado: ${type}` };
+}
+
 async function refundWithdrawal(
   supabase: ReturnType<typeof createClient>,
   userId: string,
@@ -104,12 +141,16 @@ Deno.serve(async (req: Request) => {
       .update({ status: "processing", processed_at: new Date().toISOString() })
       .eq("id", w.id);
 
+    const normalized = normalizePixKeyForAsaas(String(w.pix_key), String(w.pix_key_type ?? ""));
+    if ("error" in normalized) {
+      await refundWithdrawal(supabase, w.user_id, w.id, w.amount, normalized.error);
+      continue;
+    }
+
     const transferPayload: Record<string, unknown> = {
       value: Number(w.amount),
-      pixAddressKey: ["CPF", "CNPJ", "PHONE"].includes(w.pix_key_type)
-        ? String(w.pix_key).replace(/\D/g, "")
-        : String(w.pix_key),
-      pixAddressKeyType: w.pix_key_type,
+      pixAddressKey: normalized.key,
+      pixAddressKeyType: String(w.pix_key_type).toUpperCase(),
       description: `Saque ChessBet - R$ ${w.amount}`,
     };
     const transferRes = await fetch(`${asaasBaseUrl}/transfers`, {
@@ -127,10 +168,20 @@ Deno.serve(async (req: Request) => {
     }
 
     const getRes = await fetch(`${asaasBaseUrl}/transfers/${asaasTransferId}`, { headers: asaasHeaders });
-    const getData = (await getRes.json().catch(() => ({}))) as { status?: string };
+    const getData = (await getRes.json().catch(() => ({}))) as {
+      status?: string;
+      transferFailureReason?: string;
+      failReason?: string;
+      errors?: Array<{ description?: string }>;
+    };
     const asaasStatus = String(getData?.status ?? "").toUpperCase();
     if (["FAILED", "CANCELLED", "CANCELED", "BLOCKED"].includes(asaasStatus)) {
-      await refundWithdrawal(supabase, w.user_id, w.id, w.amount, `Asaas status: ${asaasStatus}`);
+      const reason =
+        getData?.transferFailureReason ??
+        getData?.failReason ??
+        getData?.errors?.[0]?.description ??
+        `Asaas status: ${asaasStatus}`;
+      await refundWithdrawal(supabase, w.user_id, w.id, w.amount, reason);
       continue;
     }
 

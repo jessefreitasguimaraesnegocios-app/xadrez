@@ -10,6 +10,35 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/** Valida e normaliza a chave PIX (mesmo critério do processamento Asaas). */
+function validatePixKey(key: string, type: string): { ok: true } | { error: string } {
+  const t = String(type).toUpperCase();
+  const digits = String(key).replace(/\D/g, "");
+  if (t === "CPF") {
+    if (digits.length !== 11) return { error: "CPF deve ter 11 dígitos" };
+    return { ok: true };
+  }
+  if (t === "CNPJ") {
+    if (digits.length !== 14) return { error: "CNPJ deve ter 14 dígitos" };
+    return { ok: true };
+  }
+  if (t === "PHONE") {
+    if (digits.length !== 10 && digits.length !== 11) return { error: "Telefone deve ter 10 ou 11 dígitos (com DDD)" };
+    return { ok: true };
+  }
+  if (t === "EMAIL") {
+    const trimmed = String(key).trim();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return { error: "E-mail inválido" };
+    return { ok: true };
+  }
+  if (t === "EVP") {
+    const trimmed = String(key).trim().replace(/\s/g, "");
+    if (!trimmed) return { error: "Chave EVP não pode ser vazia" };
+    return { ok: true };
+  }
+  return { error: "Tipo de chave inválido. Use CPF, CNPJ, EMAIL, PHONE ou EVP." };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
@@ -60,10 +89,17 @@ Deno.serve(async (req: Request) => {
     }
     const amountRounded = Math.round(amount * 100) / 100;
     const pixKey = String(body?.pixKey ?? body?.pix_key ?? "").trim();
-    const pixKeyType = String(body?.pixKeyType ?? body?.pix_key_type ?? "EVP").toUpperCase();
+    const pixKeyType = String(body?.pixKeyType ?? body?.pix_key_type ?? "CPF").toUpperCase();
     if (!pixKey || !["CPF", "CNPJ", "EMAIL", "PHONE", "EVP"].includes(pixKeyType)) {
       return new Response(
-        JSON.stringify({ error: "Invalid PIX key or type. Use CPF, CNPJ, EMAIL, PHONE, or EVP." }),
+        JSON.stringify({ error: "Chave ou tipo inválido. Use CPF, CNPJ, EMAIL, PHONE ou EVP." }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    const validation = validatePixKey(pixKey, pixKeyType);
+    if (!("ok" in validation)) {
+      return new Response(
+        JSON.stringify({ error: validation.error }),
         { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }

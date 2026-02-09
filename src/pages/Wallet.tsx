@@ -28,6 +28,7 @@ const Wallet = () => {
     pending_withdrawals_sum,
     total,
     pendingWithdrawals,
+    recentWithdrawals,
     loading: walletLoading,
     refetch,
   } = useWallet();
@@ -38,7 +39,7 @@ const Wallet = () => {
   const [cpfCnpj, setCpfCnpj] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [pixKey, setPixKey] = useState("");
-  const [pixKeyType, setPixKeyType] = useState("EVP");
+  const [pixKeyType, setPixKeyType] = useState("CPF");
   const [depositLoading, setDepositLoading] = useState(false);
   const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
@@ -402,6 +403,49 @@ const Wallet = () => {
                   </CardContent>
                 </Card>
               )}
+
+              {recentWithdrawals.length > 0 && (
+                <Card className="border-border bg-card">
+                  <CardHeader>
+                    <CardTitle>Últimos saques</CardTitle>
+                    <CardDescription>Concluídos ou que falharam (motivo exibido quando houver).</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {recentWithdrawals.map((w) => (
+                        <li
+                          key={w.id}
+                          className="flex flex-col gap-1 py-2 border-b border-border last:border-0"
+                        >
+                          <div className="flex justify-between items-center gap-2">
+                            <span className="font-mono">{formatBRL(w.amount)}</span>
+                            <span
+                              className={
+                                w.status === "completed"
+                                  ? "text-sm text-green-600 dark:text-green-400"
+                                  : "text-sm text-destructive"
+                              }
+                            >
+                              {w.status === "completed" ? "Concluído" : "Falhou"}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(w.created_at).toLocaleString("pt-BR")}
+                            {w.failure_reason && (
+                              <> • {w.failure_reason}</>
+                            )}
+                          </span>
+                          {w.status === "failed" && w.failure_reason && /autorização|recusad/i.test(w.failure_reason) && (
+                            <span className="text-xs text-amber-600 dark:text-amber-400">
+                              A transferência foi recusada pelo banco ou pelo Asaas. Confira se o nome do titular e a chave PIX estão corretos; em caso de dúvida, use outra chave ou entre em contato com o suporte.
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
             </>
           )}
         </div>
@@ -509,11 +553,11 @@ const Wallet = () => {
                 value={pixKeyType}
                 onChange={(e) => setPixKeyType(e.target.value)}
               >
-                <option value="EVP">Chave aleatória (EVP)</option>
                 <option value="CPF">CPF</option>
                 <option value="CNPJ">CNPJ</option>
                 <option value="EMAIL">E-mail</option>
                 <option value="PHONE">Telefone</option>
+                <option value="EVP">Chave aleatória (EVP)</option>
               </select>
             </div>
             <div>
@@ -521,7 +565,13 @@ const Wallet = () => {
               <Input
                 id="pix-key"
                 type="text"
-                placeholder={pixKeyType === "CPF" ? "000.000.000-00" : "Sua chave"}
+                placeholder={
+                  pixKeyType === "CPF"
+                    ? "000.000.000-00"
+                    : pixKeyType === "PHONE"
+                      ? "11999999999 (DDD + número)"
+                      : "Sua chave"
+                }
                 value={pixKey}
                 onChange={(e) => setPixKey(e.target.value)}
               />

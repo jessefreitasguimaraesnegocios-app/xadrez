@@ -84,10 +84,20 @@ Deno.serve(async (req: Request) => {
   for (const w of rows) {
     const id = w.asaas_transfer_id as string;
     const getRes = await fetch(`${asaasBaseUrl}/transfers/${id}`, { headers: asaasHeaders });
-    const getData = (await getRes.json().catch(() => ({}))) as { status?: string };
+    const getData = (await getRes.json().catch(() => ({}))) as {
+      status?: string;
+      transferFailureReason?: string;
+      failReason?: string;
+      errors?: Array<{ description?: string }>;
+    };
     const asaasStatus = String(getData?.status ?? "").toUpperCase();
     if (["FAILED", "CANCELLED", "CANCELED", "BLOCKED"].includes(asaasStatus)) {
-      await refundWithdrawal(supabase, w.user_id, w.id, w.amount, `Asaas status (sync): ${asaasStatus}`);
+      const reason =
+        getData?.transferFailureReason ??
+        getData?.failReason ??
+        getData?.errors?.[0]?.description ??
+        `Asaas status (sync): ${asaasStatus}`;
+      await refundWithdrawal(supabase, w.user_id, w.id, w.amount, reason);
       refunded++;
     }
   }
