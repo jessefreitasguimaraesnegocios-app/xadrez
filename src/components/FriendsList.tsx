@@ -408,11 +408,11 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
           </DialogContent>
         </Dialog>
 
-        {/* Dialog: Desafiar amigo (partida normal ou apostada) */}
+        {/* Dialog: Chamar amigo para partida (normal ou apostada) */}
         <Dialog open={inviteDialogOpen} onOpenChange={(open) => { setInviteDialogOpen(open); if (!open) setInviteTarget(null); }}>
           <DialogContent className="bg-card sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle className="font-display">Desafiar para partida</DialogTitle>
+              <DialogTitle className="font-display">Chamar para partida</DialogTitle>
             </DialogHeader>
             {inviteTarget && (
               <div className="space-y-4 pt-2">
@@ -420,7 +420,7 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
                   Convidar <span className="font-medium text-foreground">{displayName(inviteTarget)}</span> para:
                 </p>
                 <div className="space-y-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer rounded-md p-2 hover:bg-secondary/60">
                     <input
                       type="radio"
                       name="inviteType"
@@ -428,9 +428,9 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
                       onChange={() => setInviteType("normal")}
                       className="rounded-full"
                     />
-                    <span className="text-sm">Partida normal</span>
+                    <span className="text-sm font-medium">Partida normal</span>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer rounded-md p-2 hover:bg-secondary/60">
                     <input
                       type="radio"
                       name="inviteType"
@@ -438,7 +438,7 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
                       onChange={() => setInviteType("bet")}
                       className="rounded-full"
                     />
-                    <span className="text-sm">Partida apostada</span>
+                    <span className="text-sm font-medium">Partida apostada</span>
                   </label>
                   {inviteType === "bet" && (
                     <div className="pl-6 space-y-1">
@@ -578,7 +578,7 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
                   key={friend.friendshipId}
                   role="button"
                   tabIndex={0}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-secondary transition-colors group cursor-pointer"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-card hover:bg-secondary transition-colors cursor-pointer"
                   onClick={() => setChatFriend(friend)}
                   onKeyDown={(e) => e.key === "Enter" && setChatFriend(friend)}
                 >
@@ -606,28 +606,24 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
                       {unreadBySender[friend.user_id] > 99 ? "99+" : unreadBySender[friend.user_id]}
                     </span>
                   )}
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                     <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenInviteDialog(friend);
-                      }}
+                      size="sm"
+                      variant="default"
+                      className="h-8 gap-1.5"
+                      onClick={() => handleOpenInviteDialog(friend)}
                       disabled={!friend.is_online}
-                      title="Desafiar para partida"
+                      title={friend.is_online ? "Chamar para partida (normal ou apostada)" : "Amigo offline"}
                     >
-                      <Swords className="w-4 h-4" />
+                      <Swords className="w-4 h-4 shrink-0" />
+                      <span className="hidden sm:inline">Desafiar</span>
                     </Button>
                     <Button
                       size="icon"
-                      variant="ghost"
+                      variant="outline"
                       className="h-8 w-8"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setChatFriend(friend);
-                      }}
+                      onClick={() => setChatFriend(friend)}
+                      title="Conversar"
                     >
                       <MessageCircle className="w-4 h-4" />
                     </Button>
