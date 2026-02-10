@@ -23,6 +23,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
+    console.warn("[asaas-withdraw-validate] REFUSED: Método não permitido");
     return new Response(
       JSON.stringify({ status: "REFUSED", refuseReason: "Método não permitido" }),
       { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
@@ -33,6 +34,7 @@ Deno.serve(async (req: Request) => {
   if (validateToken) {
     const asaasToken = req.headers.get("asaas-access-token")?.trim() ?? "";
     if (!asaasToken || asaasToken !== validateToken) {
+      console.warn("[asaas-withdraw-validate] REFUSED: Token de autorização inválido ou ausente");
       return new Response(
         JSON.stringify({ status: "REFUSED", refuseReason: "Token de autorização inválido" }),
         { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
@@ -44,6 +46,7 @@ Deno.serve(async (req: Request) => {
   try {
     body = (await req.json()) as TransferPayload;
   } catch {
+    console.warn("[asaas-withdraw-validate] REFUSED: Corpo da requisição inválido");
     return new Response(
       JSON.stringify({ status: "REFUSED", refuseReason: "Corpo da requisição inválido" }),
       { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
@@ -51,6 +54,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (body?.type !== "TRANSFER" || !body?.transfer) {
+    console.warn("[asaas-withdraw-validate] REFUSED: Payload não é uma transferência");
     return new Response(
       JSON.stringify({ status: "REFUSED", refuseReason: "Payload não é uma transferência" }),
       { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
@@ -63,6 +67,7 @@ Deno.serve(async (req: Request) => {
   const description = String(transfer?.description ?? "");
 
   if (!transferId || value <= 0) {
+    console.warn("[asaas-withdraw-validate] REFUSED: ID ou valor da transferência inválido", { transferId: transferId || "(vazio)", value });
     return new Response(
       JSON.stringify({ status: "REFUSED", refuseReason: "ID ou valor da transferência inválido" }),
       { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
@@ -74,6 +79,9 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   const amountRounded = Math.round(value * 100) / 100;
+  const AMOUNT_TOLERANCE = 0.01;
+  const WINDOW_MINUTES = 30;
+  const since = new Date(Date.now() - WINDOW_MINUTES * 60 * 1000).toISOString();
 
   const { data: byTransferId } = await supabase
     .from("withdrawals")
@@ -83,34 +91,41 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
 
   if (byTransferId?.id) {
+    console.log("[asaas-withdraw-validate] APPROVED by asaas_transfer_id", { transferId, value: amountRounded });
     return new Response(JSON.stringify({ status: "APPROVED" }), {
       status: 200,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
   }
 
-  const { data: byAmount } = await supabase
+  const { data: byAmountRows } = await supabase
     .from("withdrawals")
     .select("id, amount, status")
-    .eq("status", "processing")
+    .in("status", ["processing", "approved"])
     .is("asaas_transfer_id", null)
-    .eq("amount", amountRounded)
-    .gte("created_at", new Date(Date.now() - 15 * 60 * 1000).toISOString())
+    .gte("amount", amountRounded - 0.005)
+    .lte("amount", amountRounded + 0.005)
+    .gte("created_at", since)
     .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .limit(5);
+
+  const byAmount = (byAmountRows ?? []).find(
+    (row) => Math.abs(Number(row.amount) - amountRounded) < AMOUNT_TOLERANCE
+  );
 
   if (byAmount?.id && /Saque ChessBet/i.test(description)) {
     await supabase
       .from("withdrawals")
       .update({ asaas_transfer_id: transferId })
       .eq("id", byAmount.id);
+    console.log("[asaas-withdraw-validate] APPROVED by amount+description", { transferId, value: amountRounded });
     return new Response(JSON.stringify({ status: "APPROVED" }), {
       status: 200,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
   }
 
+  console.warn("[asaas-withdraw-validate] REFUSED: nenhum saque encontrado (byTransferId e byAmount)", { transferId, value: amountRounded });
   return new Response(
     JSON.stringify({
       status: "REFUSED",
