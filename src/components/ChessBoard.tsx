@@ -262,15 +262,15 @@ const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botD
           </div>
         </div>
 
-        {/* Peças capturadas: abaixo das letras, maior 1 passo */}
-        <div className="mt-2 w-[31.25%] min-w-0 flex flex-col gap-1">
+        {/* Peças capturadas: logo abaixo do tabuleiro; no mobile mesma largura do board, no PC 31% */}
+        <div className="mt-1.5 lg:mt-2 w-full lg:w-[31.25%] min-w-0 flex flex-col gap-1">
           <CapturedRow pieces={capturedByWhite} pieceColor="black" pieceSizeClass={capturedPieceSizeClass} />
           <CapturedRow pieces={capturedByBlack} pieceColor="white" pieceSizeClass={capturedPieceSizeClass} />
         </div>
       </div>
 
-      {/* Controls */}
-      {showControls && (
+      {/* Nova Partida: só aparece quando a partida termina (xeque-mate, empate, desistência, tempo) */}
+      {showControls && disabled && (
         <Button
           variant="outline"
           size="sm"
