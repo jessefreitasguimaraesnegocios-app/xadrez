@@ -29,3 +29,9 @@ verify_jwt = false
 # Sem isso o gateway retorna 401 "Missing authorization header" antes do handler rodar.
 # A validação do Asaas (token) fica no código da função (ASAAS_WEBHOOK_SECRET).
 verify_jwt = false
+
+[functions.asaas-withdraw-validate]
+# Autorização externa de saque: Asaas chama esta URL (não envia JWT).
+# Sem verify_jwt = false o gateway retorna 401 antes do handler rodar.
+# Validação opcional no código via header asaas-access-token e ASAAS_WITHDRAW_VALIDATE_TOKEN.
+verify_jwt = false
