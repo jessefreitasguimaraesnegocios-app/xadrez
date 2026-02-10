@@ -30,7 +30,7 @@ const COLOR_OPTIONS: { id: BotPlayerColor; label: string }[] = [
 ];
 
 interface PlayVsBotProps {
-  onStartGame: (difficulty: BotDifficulty, timeControlSeconds: number, playerColor: "white" | "black") => void;
+  onStartGame: (difficulty: BotDifficulty, timeControlSeconds: number, playerColor: "white" | "black" | "random") => void;
 }
 
 const PlayVsBot = ({ onStartGame }: PlayVsBotProps) => {
@@ -44,9 +44,7 @@ const PlayVsBot = ({ onStartGame }: PlayVsBotProps) => {
 
   const handleStart = () => {
     if (blocksPlaying) return;
-    const color: "white" | "black" =
-      selectedColor === "random" ? (Math.random() < 0.5 ? "white" : "black") : selectedColor;
-    onStartGame(selectedDifficulty, selectedTime.seconds, color);
+    onStartGame(selectedDifficulty, selectedTime.seconds, selectedColor);
   };
 
   return (

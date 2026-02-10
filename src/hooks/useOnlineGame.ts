@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { GameState, Move, PieceColor } from "@/lib/chess";
 import { replayMoveHistory, serializeMove, applyMoveToState } from "@/lib/chess";
+import type { SerializedMove } from "@/lib/chess";
 
 export type OnlineGameRow = {
   id: string;
@@ -20,21 +21,32 @@ export type OpponentInfo = {
   elo_rating: number;
 };
 
+function getPlayerIds(row: OnlineGameRow | null): { whiteId: string; blackId: string } {
+  if (!row) return { whiteId: "", blackId: "" };
+  const whiteId = String((row as any).white_player_id ?? (row as any).whitePlayerId ?? "").trim();
+  const blackId = String((row as any).black_player_id ?? (row as any).blackPlayerId ?? "").trim();
+  return { whiteId, blackId };
+}
+
 export function useOnlineGame(gameId: string | null, userId: string | null) {
   const [game, setGame] = useState<OnlineGameRow | null>(null);
   const [opponent, setOpponent] = useState<OpponentInfo | null>(null);
   const [loading, setLoading] = useState(!!gameId);
   const [error, setError] = useState<string | null>(null);
+  const gameRef = useRef<OnlineGameRow | null>(null);
+  gameRef.current = game;
 
   const gameState: GameState | null = game
-    ? replayMoveHistory((game.move_history as { from: unknown; to: unknown; piece: unknown }[]) ?? [])
+    ? replayMoveHistory((game.move_history as SerializedMove[]) ?? [])
     : null;
 
+  const { whiteId, blackId } = getPlayerIds(game);
+  const uid = userId ? String(userId).trim() : "";
   const playerColor: PieceColor | null =
-    game && userId
-      ? userId === game.white_player_id
+    uid && whiteId && blackId
+      ? uid === whiteId
         ? "white"
-        : userId === game.black_player_id
+        : uid === blackId
           ? "black"
           : null
       : null;
@@ -65,11 +77,20 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
       return;
     }
 
-    setGame(gameRow as OnlineGameRow);
+    const row = gameRow as Record<string, unknown>;
+    const normalized: OnlineGameRow = {
+      id: String(row.id ?? ""),
+      white_player_id: row.white_player_id != null ? String(row.white_player_id) : null,
+      black_player_id: row.black_player_id != null ? String(row.black_player_id) : null,
+      move_history: Array.isArray(row.move_history) ? row.move_history : [],
+      status: String(row.status ?? "in_progress"),
+      result: row.result != null ? String(row.result) : null,
+    };
+    setGame(normalized);
 
-    const whiteId = (gameRow as OnlineGameRow).white_player_id;
-    const blackId = (gameRow as OnlineGameRow).black_player_id;
-    const opponentId = userId === whiteId ? blackId : whiteId;
+    const { whiteId: wId, blackId: bId } = getPlayerIds(normalized);
+    const opponentId =
+      userId && (String(userId) === wId ? bId : String(userId) === bId ? wId : null);
     if (opponentId) {
       const { data: profile } = await supabase
         .from("profiles")
@@ -95,7 +116,15 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` },
         (payload) => {
-          const row = payload.new as OnlineGameRow;
+          const raw = payload.new as Record<string, unknown>;
+          const row: OnlineGameRow = {
+            id: String(raw?.id ?? ""),
+            white_player_id: raw?.white_player_id != null ? String(raw.white_player_id) : null,
+            black_player_id: raw?.black_player_id != null ? String(raw.black_player_id) : null,
+            move_history: raw?.move_history ?? [],
+            status: String(raw?.status ?? ""),
+            result: raw?.result != null ? String(raw.result) : null,
+          };
           setGame((prev) => (prev ? { ...prev, ...row } : row));
         }
       )
@@ -107,12 +136,14 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
 
   const makeMove = useCallback(
     async (move: Move) => {
-      if (!gameId || !game || !gameState || !userId) return;
-      const history = (game.move_history as { from: unknown; to: unknown; piece: unknown }[]) ?? [];
+      if (!gameId || !userId) return;
+      const current = gameRef.current;
+      if (!current || !gameState) return;
+      const history = (current.move_history as SerializedMove[]) ?? [];
       const serialized = serializeMove(move);
       const newHistory = [...history, serialized];
       const nextState = applyMoveToState(gameState, move);
-      const updates: { move_history: unknown; status?: string; result?: string } = {
+      const updates: { move_history: SerializedMove[]; status?: string; result?: string } = {
         move_history: newHistory,
       };
       if (nextState.isCheckmate) {
@@ -123,6 +154,8 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
         updates.result = "draw";
       }
 
+      setGame((prev) => (prev ? { ...prev, ...updates, move_history: newHistory } : prev));
+
       const { error: updateErr } = await supabase
         .from("games")
         .update(updates)
@@ -130,9 +163,10 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
 
       if (updateErr) {
         setError(updateErr.message);
+        setGame((prev) => (prev ? { ...prev, move_history: history } : prev));
       }
     },
-    [gameId, game, gameState, userId]
+    [gameId, gameState, userId]
   );
 
   return {

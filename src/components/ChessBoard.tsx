@@ -133,7 +133,7 @@ const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botD
 
   const CapturedRow = ({ pieces, pieceColor, pieceSizeClass }: { pieces: { type: PieceType; color: "white" | "black" }[]; pieceColor: "white" | "black"; pieceSizeClass: string }) => {
     const counts = countByType(pieces);
-    const textClass = pieceColor === "white" ? "text-foreground" : "text-black";
+    const textClass = pieceColor === "white" ? "text-white" : "text-neutral-900";
     const outlineClass = pieceColor === "white" ? "captured-outline-dark" : "captured-outline-white";
     return (
       <div className="flex flex-wrap items-center gap-0.5">
@@ -248,15 +248,15 @@ const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botD
                   />
                 )}
 
-                {/* Piece */}
+                {/* Piece: sempre brancas claras e pretas escuras, independente do tema */}
                 {piece && (
                   <span
                     className={cn(
                       "relative z-10 drop-shadow-lg select-none",
                       `piece-style-${pieceStyle}`,
                       piece.color === "white"
-                        ? "text-foreground"
-                        : "text-background"
+                        ? "text-white drop-shadow-[0_0_1px_rgba(0,0,0,0.8)]"
+                        : "text-neutral-900"
                     )}
                   >
                     {pieceSymbols[piece.type][piece.color]}

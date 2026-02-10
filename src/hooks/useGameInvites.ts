@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getNextRandomColor } from "@/lib/randomColor";
 import { invokeEdgeFunction } from "@/lib/edgeFunctionAuth";
 import { useAuth } from "./useAuth";
 import { useToast } from "./use-toast";
@@ -125,12 +126,15 @@ export function useGameInvites() {
         return;
       }
 
+      const myColor = getNextRandomColor();
+      const whitePlayerId = myColor === "white" ? user.id : invite.from_user_id;
+      const blackPlayerId = myColor === "white" ? invite.from_user_id : user.id;
       const { data, error } = await invokeEdgeFunction<{ id?: string; game_id?: string; error?: string }>(
         { access_token: token },
         "create-match",
         {
-          whitePlayerId: invite.from_user_id,
-          blackPlayerId: user.id,
+          whitePlayerId,
+          blackPlayerId,
           timeControl: invite.time_control || "10+0",
           betAmount,
         }

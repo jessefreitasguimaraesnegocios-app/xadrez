@@ -32,6 +32,8 @@ interface GameViewProps {
   botPlayerColor?: "white" | "black";
   /** Chamado quando a partida termina (xeque-mate, empate, desistência, tempo). Usado para exibir de novo a barra inferior no mobile. */
   onGameOverChange?: (isOver: boolean) => void;
+  /** Em partida vs bot: ao clicar em Nova Partida, chama isto (ex.: para sortear nova cor no modo aleatório). */
+  onNewGameRequested?: () => void;
 }
 
 const GameView = ({
@@ -42,6 +44,7 @@ const GameView = ({
   botDifficulty = null,
   botPlayerColor = "white",
   onGameOverChange,
+  onNewGameRequested,
 }: GameViewProps) => {
   const { profile, user } = useAuth();
   const { toast } = useToast();
@@ -115,10 +118,13 @@ const GameView = ({
     });
   }, [isGameOver]);
 
-  const handleTurnChange = useCallback((turn: "white" | "black") => {
-    const playerColor = isBotGame ? botPlayerColor : "white";
-    setIsPlayerTurn(turn === playerColor);
-  }, [isBotGame, botPlayerColor]);
+  const handleTurnChange = useCallback(
+    (turn: "white" | "black") => {
+      const color = isBotGame ? botPlayerColor : isOnlineGame ? onlinePlayerColor : "white";
+      setIsPlayerTurn(turn === color);
+    },
+    [isBotGame, botPlayerColor, isOnlineGame, onlinePlayerColor]
+  );
 
   const handleFirstMove = useCallback(() => {
     setHasClockStarted(true);
@@ -258,7 +264,7 @@ const GameView = ({
             botPlayerColor={isBotGame ? botPlayerColor : isOnlineGame ? (onlinePlayerColor ?? undefined) : undefined}
             onTurnChange={handleTurnChange}
             onGameOver={() => setIsGameOver(true)}
-            onNewGame={handleNewGame}
+            onNewGame={onNewGameRequested ?? handleNewGame}
             onFirstMove={handleFirstMove}
             disabled={isGameOver || (isOnlineGame ? !isMyTurn || !!onlineGameState?.isCheckmate || !!onlineGameState?.isStalemate : false)}
             syncState={isOnlineGame ? onlineGameState ?? null : undefined}

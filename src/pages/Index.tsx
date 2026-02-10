@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BotDifficulty } from "@/lib/chess";
+import { getNextRandomColor } from "@/lib/randomColor";
 import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
@@ -43,6 +44,7 @@ const Index = () => {
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty | null>(null);
   const [botTimeControl, setBotTimeControl] = useState<number>(600);
   const [botPlayerColor, setBotPlayerColor] = useState<"white" | "black">("white");
+  const [botColorMode, setBotColorMode] = useState<"white" | "black" | "random">("white");
   const [gameKey, setGameKey] = useState(0);
   const [matchmakingGameId, setMatchmakingGameId] = useState<string | null>(null);
 
@@ -77,15 +79,24 @@ const Index = () => {
     };
   }, [user?.id]);
 
-  const handleStartBotGame = (difficulty: BotDifficulty, timeControlSeconds: number, playerColor: "white" | "black") => {
+  const handleStartBotGame = (difficulty: BotDifficulty, timeControlSeconds: number, playerColor: "white" | "black" | "random") => {
+    const color: "white" | "black" = playerColor === "random" ? getNextRandomColor() : playerColor;
     setIsBotGame(true);
     setBotDifficulty(difficulty);
     setBotTimeControl(timeControlSeconds);
-    setBotPlayerColor(playerColor);
+    setBotPlayerColor(color);
+    setBotColorMode(playerColor);
     setGameKey((k) => k + 1);
     setGameViewGameOver(false);
     setIsPlaying(true);
     setActiveTab("play");
+  };
+
+  const handleNewBotGame = () => {
+    const color = botColorMode === "random" ? getNextRandomColor() : botPlayerColor;
+    setBotPlayerColor(color);
+    setGameKey((k) => k + 1);
+    setGameViewGameOver(false);
   };
 
   const handleExitBotGame = () => {
@@ -159,6 +170,7 @@ const Index = () => {
                   botPlayerColor={isBotGame ? botPlayerColor : undefined}
                   timeControl={isBotGame ? botTimeControl : undefined}
                   onGameOverChange={setGameViewGameOver}
+                  onNewGameRequested={isBotGame ? handleNewBotGame : undefined}
                 />
               </div>
             ) : (
