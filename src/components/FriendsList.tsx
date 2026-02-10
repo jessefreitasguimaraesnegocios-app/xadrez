@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { UserPlus, Swords, MessageCircle, Search, Check, X, Loader2 } from "lucide-react";
+import { UserPlus, Swords, MessageCircle, Search, Check, X, Loader2, Zap, Clock, Timer, Infinity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useWallet } from "@/hooks/useWallet";
@@ -19,6 +19,7 @@ import { useGameInvites, type GameInviteWithFrom } from "@/hooks/useGameInvites"
 import { useMyTournaments } from "@/hooks/useMyTournaments";
 import { useUnreadBySender } from "@/hooks/useUnreadBySender";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import FriendChatPanel from "@/components/FriendChatPanel";
 
 type ProfileRow = {
@@ -29,6 +30,13 @@ type ProfileRow = {
   elo_rating: number;
   is_online: boolean;
 };
+
+const INVITE_TIME_OPTIONS = [
+  { id: "bullet", name: "Bullet", time: "1+0", icon: Zap, description: "Ultra-rápidas" },
+  { id: "blitz", name: "Blitz", time: "3+2", icon: Clock, description: "Ritmo acelerado" },
+  { id: "rapid", name: "Rápida", time: "10+0", icon: Timer, description: "Tempo para pensar" },
+  { id: "classical", name: "Clássica", time: "30+0", icon: Infinity, description: "Partida completa" },
+] as const;
 
 type FriendsListProps = {
   onStartGame?: (gameId: string) => void;
@@ -126,6 +134,7 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteTarget, setInviteTarget] = useState<(ProfileRow & { friendshipId: string }) | null>(null);
   const [inviteType, setInviteType] = useState<"normal" | "bet">("normal");
+  const [inviteTimeControl, setInviteTimeControl] = useState<string>("10+0");
   const [inviteBetInput, setInviteBetInput] = useState("");
   const [sendingInvite, setSendingInvite] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -301,6 +310,7 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
   const handleOpenInviteDialog = (friend: ProfileRow & { friendshipId: string }) => {
     setInviteTarget(friend);
     setInviteType("normal");
+    setInviteTimeControl("10+0");
     setInviteBetInput("");
     setInviteDialogOpen(true);
   };
@@ -314,17 +324,18 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
       setSendingInvite(false);
       return;
     }
-    const { error } = await sendInvite(inviteTarget.user_id, bet);
+    const { error } = await sendInvite(inviteTarget.user_id, bet, inviteTimeControl);
     setSendingInvite(false);
     if (error) {
       toast({ variant: "destructive", title: "Erro ao enviar convite", description: error });
       return;
     }
+    const timeLabel = INVITE_TIME_OPTIONS.find((t) => t.time === inviteTimeControl)?.name ?? inviteTimeControl;
     toast({
       title: "Convite enviado!",
       description: inviteType === "normal"
-        ? `${inviteTarget.display_name || inviteTarget.username} foi convidado para uma partida normal.`
-        : `Convite de partida apostada (R$ ${bet?.toFixed(2)}) enviado.`,
+        ? `Convite para partida normal (${timeLabel}) enviado a ${inviteTarget.display_name || inviteTarget.username}.`
+        : `Convite partida apostada (${timeLabel}, R$ ${bet?.toFixed(2)}) enviado.`,
     });
     setInviteDialogOpen(false);
     setInviteTarget(null);
@@ -410,7 +421,7 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
 
         {/* Dialog: Chamar amigo para partida (normal ou apostada) */}
         <Dialog open={inviteDialogOpen} onOpenChange={(open) => { setInviteDialogOpen(open); if (!open) setInviteTarget(null); }}>
-          <DialogContent className="bg-card sm:max-w-sm">
+          <DialogContent className="bg-card sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="font-display">Chamar para partida</DialogTitle>
             </DialogHeader>
@@ -455,6 +466,34 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
                       />
                     </div>
                   )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Ritmo da partida</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {INVITE_TIME_OPTIONS.map((opt) => {
+                      const Icon = opt.icon;
+                      const isSelected = inviteTimeControl === opt.time;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setInviteTimeControl(opt.time)}
+                          className={cn(
+                            "flex items-center gap-2 rounded-lg border p-2.5 text-left transition-colors",
+                            isSelected
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-secondary/40 hover:bg-secondary/70"
+                          )}
+                        >
+                          <Icon className="w-4 h-4 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm">{opt.name}</p>
+                            <p className="text-xs text-muted-foreground">{opt.time} · {opt.description}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <Button
                   className="w-full gap-2"

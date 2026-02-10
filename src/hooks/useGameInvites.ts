@@ -125,7 +125,7 @@ export function useGameInvites() {
         return;
       }
 
-      const { data, error } = await invokeEdgeFunction<{ id?: string; error?: string }>(
+      const { data, error } = await invokeEdgeFunction<{ id?: string; game_id?: string; error?: string }>(
         { access_token: token },
         "create-match",
         {
@@ -146,11 +146,13 @@ export function useGameInvites() {
         return;
       }
 
-      const gameId = data?.id;
+      const gameId = typeof data?.id === "string" ? data.id : (data && typeof data === "object" && "game_id" in data ? String((data as { game_id: string }).game_id) : null);
       await supabase.from("game_invites").update({ status: "accepted" }).eq("id", invite.id);
       setAcceptingId(null);
-      toast({ title: "Convite aceito!", description: "Partida criada." });
-      if (gameId && onGameCreated) onGameCreated(gameId);
+      toast({ title: "Convite aceito!", description: "Partida criada. Iniciando..." });
+      if (gameId && onGameCreated) {
+        onGameCreated(gameId);
+      }
     },
     [user, toast]
   );
