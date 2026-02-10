@@ -34,6 +34,8 @@ interface GameViewProps {
   onGameOverChange?: (isOver: boolean) => void;
   /** Em partida vs bot: ao clicar em Nova Partida, chama isto (ex.: para sortear nova cor no modo aleatório). */
   onNewGameRequested?: () => void;
+  /** Chamado quando a partida de fato começa (ex.: primeira jogada). Usado para esconder "Voltar ao menu" durante o jogo. */
+  onGameStartedChange?: (started: boolean) => void;
 }
 
 const GameView = ({
@@ -45,6 +47,7 @@ const GameView = ({
   botPlayerColor = "white",
   onGameOverChange,
   onNewGameRequested,
+  onGameStartedChange,
 }: GameViewProps) => {
   const { profile, user } = useAuth();
   const { toast } = useToast();
@@ -58,8 +61,36 @@ const GameView = ({
     loading: onlineLoading,
     error: onlineError,
     isMyTurn,
-    makeMove,
+    makeMove: makeMoveRaw,
+    whiteRemainingTime: onlineWhiteTime = timeControl,
+    blackRemainingTime: onlineBlackTime = timeControl,
   } = useOnlineGame(isOnlineGame ? gameId : null, user?.id ?? null);
+
+  const turnStartRemainingRef = useRef<number>(0);
+  const turnStartTimeRef = useRef<number>(0);
+  useEffect(() => {
+    if (!isOnlineGame || !isMyTurn) return;
+    const myRemaining = onlinePlayerColor === "white" ? onlineWhiteTime : onlineBlackTime;
+    turnStartRemainingRef.current = myRemaining;
+    turnStartTimeRef.current = Date.now();
+  }, [isOnlineGame, isMyTurn, onlinePlayerColor, onlineWhiteTime, onlineBlackTime]);
+
+  const makeMove = useCallback(
+    (move: Parameters<typeof makeMoveRaw>[0]) => {
+      if (!isOnlineGame) {
+        makeMoveRaw(move);
+        return;
+      }
+      const elapsed = (Date.now() - turnStartTimeRef.current) / 1000;
+      const remaining = Math.max(0, turnStartRemainingRef.current - elapsed);
+      if (onlinePlayerColor === "white") {
+        makeMoveRaw(move, { whiteRemainingSeconds: remaining });
+      } else {
+        makeMoveRaw(move, { blackRemainingSeconds: remaining });
+      }
+    },
+    [isOnlineGame, onlinePlayerColor, makeMoveRaw]
+  );
 
   const [showBetting, setShowBetting] = useState(withBetting && !isBotGame);
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
@@ -71,6 +102,9 @@ const GameView = ({
   const [hasClockStarted, setHasClockStarted] = useState(false);
   const [preGameCountdown, setPreGameCountdown] = useState(30);
   const preGameTimeUpFired = useRef(false);
+
+  const serverPlayerTime = isOnlineGame && onlinePlayerColor ? (onlinePlayerColor === "white" ? onlineWhiteTime : onlineBlackTime) : null;
+  const serverOpponentTime = isOnlineGame && onlinePlayerColor ? (onlinePlayerColor === "white" ? onlineBlackTime : onlineWhiteTime) : null;
 
   const opponentLabel =
     isBotGame && botDifficulty
@@ -128,7 +162,8 @@ const GameView = ({
 
   const handleFirstMove = useCallback(() => {
     setHasClockStarted(true);
-  }, []);
+    onGameStartedChange?.(true);
+  }, [onGameStartedChange]);
 
   const handleNewGame = useCallback(() => {
     preGameTimeUpFired.current = false;
@@ -146,12 +181,20 @@ const GameView = ({
     setIsGameOver(false);
     setIsPlayerTurn(isBotGame ? botPlayerColor === "white" : true);
     setPreGameCountdown(30);
-    if (isBotGame && botPlayerColor === "black") {
+    if (isOnlineGame) {
+      setHasClockStarted(true);
+    } else if (isBotGame && botPlayerColor === "black") {
       setHasClockStarted(true);
     } else {
       setHasClockStarted(false);
     }
-  }, [isBotGame, botDifficulty, botPlayerColor]);
+  }, [isBotGame, botDifficulty, botPlayerColor, isOnlineGame]);
+
+  useEffect(() => {
+    if (isOnlineGame && onlineGameState && onlinePlayerColor) {
+      setIsPlayerTurn(onlineGameState.currentTurn === onlinePlayerColor);
+    }
+  }, [isOnlineGame, onlineGameState?.currentTurn, onlinePlayerColor]);
 
   // Pre-game: 30s to make first move; if time runs out, cancel game
   useEffect(() => {
@@ -246,8 +289,8 @@ const GameView = ({
               </div>
             </div>
             <GameTimer
-              key={`opponent-timer-${timerResetKey}`}
-              initialTime={opponentTime}
+              key={`opponent-timer-${timerResetKey}${serverOpponentTime ?? ""}`}
+              initialTime={serverOpponentTime ?? opponentTime}
               isActive={hasClockStarted && !isGameOver && !isPlayerTurn && !isBotGame}
               isPlayer={false}
               onTimeUp={handleOpponentTimeUp}
@@ -289,8 +332,8 @@ const GameView = ({
             </div>
             {hasClockStarted ? (
               <GameTimer
-                key={`player-timer-${timerResetKey}`}
-                initialTime={playerTime}
+                key={`player-timer-${timerResetKey}${serverPlayerTime ?? ""}`}
+                initialTime={serverPlayerTime ?? playerTime}
                 isActive={!isGameOver && isPlayerTurn}
                 isPlayer={true}
                 onTimeUp={handlePlayerTimeUp}
