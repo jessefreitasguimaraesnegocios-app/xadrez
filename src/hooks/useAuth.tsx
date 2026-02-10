@@ -124,13 +124,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
 
       if (data.user) {
-        // Create profile
-        const { error: profileError } = await supabase.from('profiles').insert({
-          user_id: data.user.id,
-          username,
-          display_name: username,
-          elo_rating: 1200,
-        });
+        // Perfil já foi criado pelo trigger handle_new_user; só atualizamos username/display_name escolhidos
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ username, display_name: username })
+          .eq('user_id', data.user.id);
 
         if (profileError) throw profileError;
 

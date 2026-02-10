@@ -39,6 +39,20 @@ Passo a passo direto do que configurar e onde colocar cada chave.
 
 **Como cadastrar cada um:** em **Edge Functions → Secrets**, clique em **Add new secret**, coloque o **Name** (ex.: `ASAAS_API_KEY`) e o **Value** (a chave/token).
 
+### 1.3 Login com Google (OAuth)
+
+Se você ativou o provedor **Google** em **Authentication → Providers** e colocou o Client ID e o Client Secret:
+
+1. **Redirect URLs**  
+   No Supabase: **Authentication** → **URL Configuration** → **Redirect URLs**.  
+   Adicione a URL do seu app para onde o usuário deve voltar após o login com Google, por exemplo:
+   - Desenvolvimento: `http://localhost:5173` (ou a porta que você usa)
+   - Produção: `https://seudominio.com`  
+   O app usa `window.location.origin` como `redirectTo`; essa origem precisa estar na lista, senão o Supabase bloqueia o retorno e o login falha.
+
+2. **Site URL**  
+   Em **URL Configuration**, o **Site URL** deve ser a URL principal do app (ex.: `https://seudominio.com` ou `http://localhost:5173` para dev).
+
 ---
 
 ## 2. Asaas

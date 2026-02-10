@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
-import { lovable } from '@/integrations/lovable/index';
+import { supabase } from '@/integrations/supabase/client';
 import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 interface GoogleSignInButtonProps {
   className?: string;
@@ -8,19 +9,37 @@ interface GoogleSignInButtonProps {
 
 const GoogleSignInButton = ({ className }: GoogleSignInButtonProps) => {
   const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      const { error } = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
       });
 
       if (error) {
         console.error('Google sign in error:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Erro ao entrar com Google',
+          description: error.message,
+        });
       }
     } catch (error) {
       console.error('Unexpected error during Google sign in:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Não foi possível iniciar o login com Google.',
+      });
     } finally {
       setLoading(false);
     }
