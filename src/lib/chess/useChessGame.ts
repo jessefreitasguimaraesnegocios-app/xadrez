@@ -50,6 +50,10 @@ export interface UseChessGameOptions {
   onFirstMove?: () => void;
   /** Called after each move; wasCapture true if a piece was taken. */
   onMoveSound?: (wasCapture: boolean) => void;
+  /** Modo online: estado vindo do servidor (partida PvP). */
+  syncState?: GameState | null;
+  /** Modo online: ao jogar, chama isto em vez de atualizar estado local. */
+  onMove?: (move: Move) => void;
 }
 
 export const useChessGame = (options?: UseChessGameOptions) => {
@@ -60,7 +64,14 @@ export const useChessGame = (options?: UseChessGameOptions) => {
   const onGameOver = options?.onGameOver;
   const onFirstMove = options?.onFirstMove;
   const onMoveSound = options?.onMoveSound;
-  const [gameState, setGameState] = useState<GameState>(createInitialState);
+  const syncState = options?.syncState;
+  const onMove = options?.onMove;
+  const isControlled = syncState != null && typeof onMove === 'function';
+
+  const [localState, setLocalState] = useState<GameState>(createInitialState);
+  const gameState = isControlled ? (syncState ?? localState) : localState;
+  const setGameState = setLocalState;
+
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [legalMoves, setLegalMoves] = useState<Square[]>([]);
   const [promotionPending, setPromotionPending] = useState<{ from: Square; to: Square } | null>(null);
@@ -128,91 +139,83 @@ export const useChessGame = (options?: UseChessGameOptions) => {
   }, [gameState, selectedSquare, legalMoves]);
 
   const executeMove = useCallback((from: Square, to: Square, promotion?: PieceType) => {
-    const prevBoard = gameStateRef.current.board;
+    const prev = gameStateRef.current;
+    const prevBoard = prev.board;
     const piece = getPieceAt(prevBoard, from);
     if (!piece) return;
     const captured = getPieceAt(prevBoard, to);
 
-    setGameState(prev => {
-      const p = getPieceAt(prev.board, from);
-      if (!p) return prev;
-      const cap = getPieceAt(prev.board, to);
-      let newBoard = makeMoveOnBoard(prev.board, from, to);
-      
-      // Handle promotion
-      if (promotion && piece.type === 'pawn') {
-        newBoard[to.row][to.col] = { type: promotion, color: piece.color };
+    const cap = getPieceAt(prev.board, to);
+    let newBoard = makeMoveOnBoard(prev.board, from, to);
+    if (promotion && piece.type === 'pawn') {
+      newBoard = newBoard.map(row => [...row]);
+      newBoard[to.row][to.col] = { type: promotion, color: piece.color };
+    }
+    const newCastlingRights = { ...prev.castlingRights };
+    if (piece.type === 'king') {
+      if (piece.color === 'white') {
+        newCastlingRights.whiteKingside = false;
+        newCastlingRights.whiteQueenside = false;
+      } else {
+        newCastlingRights.blackKingside = false;
+        newCastlingRights.blackQueenside = false;
       }
+    }
+    if (piece.type === 'rook') {
+      if (from.row === 7 && from.col === 0) newCastlingRights.whiteQueenside = false;
+      if (from.row === 7 && from.col === 7) newCastlingRights.whiteKingside = false;
+      if (from.row === 0 && from.col === 0) newCastlingRights.blackQueenside = false;
+      if (from.row === 0 && from.col === 7) newCastlingRights.blackKingside = false;
+    }
+    let enPassantTarget: Square | null = null;
+    if (piece.type === 'pawn' && Math.abs(from.row - to.row) === 2) {
+      enPassantTarget = { row: (from.row + to.row) / 2, col: from.col };
+    }
+    const nextTurn: PieceColor = prev.currentTurn === 'white' ? 'black' : 'white';
+    const check = isInCheck(newBoard, nextTurn);
+    const checkmate = isCheckmate(newBoard, nextTurn, newCastlingRights, enPassantTarget);
 
-      // Update castling rights
-      const newCastlingRights = { ...prev.castlingRights };
-      
-      if (piece.type === 'king') {
-        if (piece.color === 'white') {
-          newCastlingRights.whiteKingside = false;
-          newCastlingRights.whiteQueenside = false;
-        } else {
-          newCastlingRights.blackKingside = false;
-          newCastlingRights.blackQueenside = false;
-        }
-      }
-      
-      if (piece.type === 'rook') {
-        if (from.row === 7 && from.col === 0) newCastlingRights.whiteQueenside = false;
-        if (from.row === 7 && from.col === 7) newCastlingRights.whiteKingside = false;
-        if (from.row === 0 && from.col === 0) newCastlingRights.blackQueenside = false;
-        if (from.row === 0 && from.col === 7) newCastlingRights.blackKingside = false;
-      }
+    const move: Move = {
+      from,
+      to,
+      piece,
+      captured: cap || undefined,
+      promotion,
+      isEnPassant: piece.type === 'pawn' && from.col !== to.col && !cap,
+      isCastling: piece.type === 'king' && Math.abs(from.col - to.col) === 2
+        ? (to.col > from.col ? 'kingside' : 'queenside')
+        : undefined,
+      isCheck: check,
+      isCheckmate: checkmate,
+    };
 
-      // Update en passant target
-      let enPassantTarget: Square | null = null;
-      if (piece.type === 'pawn' && Math.abs(from.row - to.row) === 2) {
-        enPassantTarget = {
-          row: (from.row + to.row) / 2,
-          col: from.col
-        };
-      }
+    if (isControlled && onMove) {
+      onMove(move);
+      setSelectedSquare(null);
+      setLegalMoves([]);
+      setPromotionPending(null);
+      onMoveSoundRef.current?.(!!captured);
+      return;
+    }
 
-      const nextTurn: PieceColor = prev.currentTurn === 'white' ? 'black' : 'white';
-      const check = isInCheck(newBoard, nextTurn);
-      const checkmate = isCheckmate(newBoard, nextTurn, newCastlingRights, enPassantTarget);
-      const stalemate = isStalemate(newBoard, nextTurn, newCastlingRights, enPassantTarget);
-
-      // Create move record
-      const move: Move = {
-        from,
-        to,
-        piece: p,
-        captured: cap || undefined,
-        promotion,
-        isEnPassant: p.type === 'pawn' && from.col !== to.col && !cap,
-        isCastling: p.type === 'king' && Math.abs(from.col - to.col) === 2
-          ? (to.col > from.col ? 'kingside' : 'queenside')
-          : undefined,
-        isCheck: check,
-        isCheckmate: checkmate,
-      };
-
-      return {
-        board: newBoard,
-        currentTurn: nextTurn,
-        castlingRights: newCastlingRights,
-        enPassantTarget,
-        halfMoveClock: p.type === 'pawn' || cap ? 0 : prev.halfMoveClock + 1,
-        fullMoveNumber: prev.currentTurn === 'black' ? prev.fullMoveNumber + 1 : prev.fullMoveNumber,
-        isCheck: check,
-        isCheckmate: checkmate,
-        isStalemate: stalemate,
-        isDraw: stalemate || prev.halfMoveClock >= 100,
-        moveHistory: [...prev.moveHistory, move],
-      };
+    setGameState({
+      board: newBoard,
+      currentTurn: nextTurn,
+      castlingRights: newCastlingRights,
+      enPassantTarget,
+      halfMoveClock: piece.type === 'pawn' || cap ? 0 : prev.halfMoveClock + 1,
+      fullMoveNumber: prev.currentTurn === 'black' ? prev.fullMoveNumber + 1 : prev.fullMoveNumber,
+      isCheck: check,
+      isCheckmate: checkmate,
+      isStalemate: isStalemate(newBoard, nextTurn, newCastlingRights, enPassantTarget),
+      isDraw: prev.halfMoveClock >= 100,
+      moveHistory: [...prev.moveHistory, move],
     });
-
     setSelectedSquare(null);
     setLegalMoves([]);
     setPromotionPending(null);
     onMoveSoundRef.current?.(!!captured);
-  }, []);
+  }, [isControlled, onMove]);
 
   const handlePromotion = useCallback((pieceType: PieceType) => {
     if (promotionPending) {

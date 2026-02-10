@@ -23,6 +23,15 @@ export interface Move {
   isCheckmate?: boolean;
 }
 
+/** Formato JSON para persistir move_history no backend */
+export interface SerializedMove {
+  from: { row: number; col: number };
+  to: { row: number; col: number };
+  piece: { type: PieceType; color: PieceColor };
+  promotion?: PieceType;
+  captured?: { type: PieceType; color: PieceColor };
+}
+
 export interface CastlingRights {
   whiteKingside: boolean;
   whiteQueenside: boolean;

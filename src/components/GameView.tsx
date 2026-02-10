@@ -10,6 +10,7 @@ import { Flag, RotateCcw, Bot, Maximize2, Minimize2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useOnlineGame } from "@/hooks/useOnlineGame";
 import type { BotDifficulty } from "@/lib/chess";
 import { cn } from "@/lib/utils";
 
@@ -42,9 +43,21 @@ const GameView = ({
   botPlayerColor = "white",
   onGameOverChange,
 }: GameViewProps) => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+
+  const isOnlineGame = !!gameId && !isBotGame;
+  const {
+    gameState: onlineGameState,
+    playerColor: onlinePlayerColor,
+    opponent: onlineOpponent,
+    loading: onlineLoading,
+    error: onlineError,
+    isMyTurn,
+    makeMove,
+  } = useOnlineGame(isOnlineGame ? gameId : null, user?.id ?? null);
+
   const [showBetting, setShowBetting] = useState(withBetting && !isBotGame);
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [isGameOver, setIsGameOver] = useState(false);
@@ -55,9 +68,14 @@ const GameView = ({
   const [hasClockStarted, setHasClockStarted] = useState(false);
   const [preGameCountdown, setPreGameCountdown] = useState(30);
   const preGameTimeUpFired = useRef(false);
-  const opponentLabel = isBotGame && botDifficulty
-    ? `Bot (${BOT_LABELS[botDifficulty]})`
-    : "Oponente";
+
+  const opponentLabel =
+    isBotGame && botDifficulty
+      ? `Bot (${BOT_LABELS[botDifficulty]})`
+      : isOnlineGame && onlineOpponent
+        ? onlineOpponent.display_name || onlineOpponent.username
+        : "Oponente";
+  const opponentElo = isOnlineGame && onlineOpponent ? onlineOpponent.elo_rating : 1920;
 
   const handlePlayerTimeUp = useCallback(() => {
     if (isGameOver) return;
@@ -167,6 +185,26 @@ const GameView = ({
     onGameOverChange?.(isGameOver);
   }, [isGameOver, onGameOverChange]);
 
+  const onlineGameOver = isOnlineGame && onlineGameState && (onlineGameState.isCheckmate || onlineGameState.isStalemate || onlineGameState.isDraw);
+  useEffect(() => {
+    if (onlineGameOver) onGameOverChange?.(true);
+  }, [onlineGameOver, onGameOverChange]);
+
+  if (isOnlineGame && onlineLoading && !onlineGameState) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+        <p>Carregando partida...</p>
+      </div>
+    );
+  }
+  if (isOnlineGame && onlineError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-destructive">
+        <p>{onlineError}</p>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -185,13 +223,20 @@ const GameView = ({
                   <AvatarFallback className="bg-muted text-muted-foreground">
                     <Bot className="w-5 h-5" />
                   </AvatarFallback>
+                ) : isOnlineGame && onlineOpponent ? (
+                  <>
+                    <AvatarImage src={onlineOpponent.avatar_url ?? undefined} />
+                    <AvatarFallback className="bg-muted text-muted-foreground">
+                      {(onlineOpponent.display_name || onlineOpponent.username).slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </>
                 ) : (
                   <AvatarFallback className="bg-muted text-muted-foreground">OP</AvatarFallback>
                 )}
               </Avatar>
               <div>
                 <p className="font-medium">{opponentLabel}</p>
-                <p className="text-sm text-muted-foreground">{isBotGame ? "Jogador virtual" : "1920 ELO"}</p>
+                <p className="text-sm text-muted-foreground">{isBotGame ? "Jogador virtual" : `${opponentElo} ELO`}</p>
               </div>
             </div>
             <GameTimer
@@ -210,12 +255,14 @@ const GameView = ({
             size={isFullscreen ? "xl" : isMobile ? "xl" : "lg"}
             fullscreen={isFullscreen}
             botDifficulty={botDifficulty}
-            botPlayerColor={isBotGame ? botPlayerColor : undefined}
+            botPlayerColor={isBotGame ? botPlayerColor : isOnlineGame ? (onlinePlayerColor ?? undefined) : undefined}
             onTurnChange={handleTurnChange}
             onGameOver={() => setIsGameOver(true)}
             onNewGame={handleNewGame}
             onFirstMove={handleFirstMove}
-            disabled={isGameOver}
+            disabled={isGameOver || (isOnlineGame ? !isMyTurn || !!onlineGameState?.isCheckmate || !!onlineGameState?.isStalemate : false)}
+            syncState={isOnlineGame ? onlineGameState ?? null : undefined}
+            onMove={isOnlineGame ? makeMove : undefined}
           />
         </div>
 

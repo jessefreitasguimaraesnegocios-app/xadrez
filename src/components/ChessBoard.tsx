@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { useChessGame, pieceSymbols, Square, type BotDifficulty, type PieceType } from "@/lib/chess";
+import { useChessGame, pieceSymbols, Square, type BotDifficulty, type PieceType, type GameState, type Move } from "@/lib/chess";
 import { playMoveSound, playCaptureSound } from "@/lib/sound";
 import PromotionDialog from "./PromotionDialog";
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +22,13 @@ interface ChessBoardProps {
   onFirstMove?: () => void;
   /** When true, board does not accept moves (e.g. after resign/draw/time up). */
   disabled?: boolean;
+  /** Estado do jogo vindo do servidor (PvP online). */
+  syncState?: GameState | null;
+  /** Ao jogar em partida online, chama isto em vez de atualizar estado local. */
+  onMove?: (move: Move) => void;
 }
 
-const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botDifficulty = null, botPlayerColor, onTurnChange, onGameOver, onNewGame, onFirstMove, disabled = false }: ChessBoardProps) => {
+const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botDifficulty = null, botPlayerColor, onTurnChange, onGameOver, onNewGame, onFirstMove, disabled = false, syncState, onMove }: ChessBoardProps) => {
   const { boardTheme, pieceStyle } = useAppearance();
   const playerColor = botPlayerColor ?? "white";
   const flip = playerColor === "black";
@@ -44,6 +48,8 @@ const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botD
     onGameOver,
     onFirstMove,
     onMoveSound: (wasCapture) => (wasCapture ? playCaptureSound() : playMoveSound()),
+    syncState,
+    onMove,
   });
 
   const handleNewGame = () => {
@@ -269,8 +275,8 @@ const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botD
         </div>
       </div>
 
-      {/* Nova Partida: só aparece quando a partida termina (xeque-mate, empate, desistência, tempo) */}
-      {showControls && disabled && (
+      {/* Nova Partida: só aparece quando a partida termina (não em partida online) */}
+      {showControls && disabled && !syncState && (
         <Button
           variant="outline"
           size="sm"
