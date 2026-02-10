@@ -164,11 +164,11 @@ const GameView = ({
     <div
       className={cn(
         "flex flex-col lg:flex-row gap-4 lg:gap-6",
-        isFullscreen && "fixed inset-0 z-50 bg-background p-2 sm:p-4 overflow-auto"
+        isFullscreen && "fixed inset-0 z-50 bg-background p-2 sm:p-4 overflow-auto flex-col"
       )}
     >
       {/* Main Game Area */}
-      <div className="flex-1 space-y-3 lg:space-y-4 min-w-0">
+      <div className={cn("flex-1 space-y-3 lg:space-y-4 min-w-0 flex flex-col", isFullscreen && "min-h-0")}>
         {/* Opponent Info */}
         <Card className={cn("bg-card border-border", isMobile ? "p-3" : "p-4")}>
           <div className="flex items-center justify-between">
@@ -198,9 +198,10 @@ const GameView = ({
         </Card>
 
         {/* Chess Board */}
-        <div className={cn("flex justify-center py-2 lg:py-4 w-full", isFullscreen && "flex-1 items-center")}>
+        <div className={cn("flex justify-center py-2 lg:py-4 w-full min-w-0", isFullscreen && "flex-1 min-h-0 items-center justify-center")}>
           <ChessBoard
             size={isFullscreen ? "xl" : isMobile ? "xl" : "lg"}
+            fullscreen={isFullscreen}
             botDifficulty={botDifficulty}
             botPlayerColor={isBotGame ? botPlayerColor : undefined}
             onTurnChange={handleTurnChange}
@@ -283,8 +284,8 @@ const GameView = ({
         </div>
       </div>
 
-      {/* Betting Panel */}
-      {showBetting && (
+      {/* Betting Panel - oculto em tela cheia para dar espaço ao tabuleiro */}
+      {showBetting && !isFullscreen && (
         <div className="lg:w-[360px]">
           <BettingPanel
             playerName={profile?.display_name || profile?.username || 'Você'}
@@ -297,8 +298,8 @@ const GameView = ({
         </div>
       )}
 
-      {/* Game Chat */}
-      <GameChat gameId={gameId} />
+      {/* Game Chat - oculto em tela cheia */}
+      {!isFullscreen && <GameChat gameId={gameId} />}
     </div>
   );
 };

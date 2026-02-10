@@ -9,6 +9,8 @@ import { useAppearance } from "@/contexts/AppearanceContext";
 
 interface ChessBoardProps {
   size?: "sm" | "md" | "lg" | "xl";
+  /** Em tela cheia o tabuleiro preenche o espaço disponível (max width/height). */
+  fullscreen?: boolean;
   showControls?: boolean;
   botDifficulty?: BotDifficulty | null;
   /** When playing vs bot: which color the human plays. Board is flipped when black. */
@@ -22,7 +24,7 @@ interface ChessBoardProps {
   disabled?: boolean;
 }
 
-const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, botPlayerColor, onTurnChange, onGameOver, onNewGame, onFirstMove, disabled = false }: ChessBoardProps) => {
+const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botDifficulty = null, botPlayerColor, onTurnChange, onGameOver, onNewGame, onFirstMove, disabled = false }: ChessBoardProps) => {
   const { boardTheme, pieceStyle } = useAppearance();
   const playerColor = botPlayerColor ?? "white";
   const flip = playerColor === "black";
@@ -53,7 +55,9 @@ const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, bo
     sm: "w-72 h-72 shrink-0",
     md: "w-[420px] h-[420px] shrink-0",
     lg: "w-[600px] h-[600px] shrink-0",
-    xl: "w-full aspect-square max-w-[800px] min-w-0 shrink-0",
+    xl: fullscreen
+      ? "w-full h-full min-w-0 min-h-0 max-w-full max-h-full aspect-square"
+      : "w-full aspect-square max-w-[800px] min-w-0 shrink-0",
   };
 
   const squareSize = {
@@ -153,7 +157,7 @@ const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, bo
   };
 
   return (
-    <div className={cn("flex flex-col items-center gap-4", size === "xl" && "w-full max-w-full")}>
+    <div className={cn("flex flex-col items-center gap-4", size === "xl" && "w-full max-w-full", fullscreen && "h-full justify-center")}>
       {/* Game Status */}
       {showControls && (
         <div className="flex items-center gap-4">
@@ -184,14 +188,8 @@ const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, bo
         </div>
       )}
 
-      <div className={cn("relative inline-block", size === "xl" && "w-full max-w-[800px]")}>
-        {/* Grid + rank labels (wrapper para labels acompanharem só a altura do tabuleiro) */}
-        <div className="relative inline-block">
-          <div className="absolute -left-6 top-0 h-full flex flex-col justify-around text-muted-foreground text-sm font-medium">
-            {ranks.map((rank) => (
-              <span key={rank}>{rank}</span>
-            ))}
-          </div>
+      <div className={cn("relative", size === "xl" ? (fullscreen ? "w-full h-full min-w-0 min-h-0" : "w-full") : "inline-block")}>
+        <div className={cn("relative", size === "xl" ? "w-full h-full min-w-0 min-h-0" : "inline-block")}>
           <div
             className={cn(
               "grid grid-cols-8 grid-rows-8 rounded-lg overflow-hidden shadow-2xl border-2 border-border",
@@ -219,6 +217,18 @@ const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, bo
                   "hover:brightness-110"
                 )}
               >
+                {/* Coordenadas dentro do quadrado: rank (esquerda) e file (embaixo) */}
+                {displayCol === 0 && (
+                  <span className="absolute left-0.5 top-0.5 text-[10px] sm:text-xs font-medium text-muted-foreground/90 select-none pointer-events-none">
+                    {ranks[displayRow]}
+                  </span>
+                )}
+                {displayRow === 7 && (
+                  <span className="absolute right-0.5 bottom-0.5 text-[10px] sm:text-xs font-medium text-muted-foreground/90 select-none pointer-events-none">
+                    {files[displayCol]}
+                  </span>
+                )}
+
                 {/* Legal move indicator */}
                 {isLegalMove(displayRow, displayCol) && (
                   <div
@@ -250,13 +260,6 @@ const ChessBoard = ({ size = "md", showControls = true, botDifficulty = null, bo
             })
           )}
           </div>
-        </div>
-
-        {/* File labels: rente ao tabuleiro */}
-        <div className="mt-0.5 w-full flex justify-around text-muted-foreground text-sm font-medium">
-          {files.map((file) => (
-            <span key={file}>{file}</span>
-          ))}
         </div>
 
         {/* Peças capturadas: abaixo das letras, maior 1 passo */}
