@@ -117,9 +117,9 @@ export function useGameInvites() {
 
       const betAmount = asBet && invite.bet_amount != null && invite.bet_amount > 0 ? invite.bet_amount : 0;
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
       const token = session?.access_token;
-      if (!token) {
+      if (sessionError || !token) {
         toast({ variant: "destructive", title: "Sessão expirada", description: "Faça login novamente." });
         setAcceptingId(null);
         return;

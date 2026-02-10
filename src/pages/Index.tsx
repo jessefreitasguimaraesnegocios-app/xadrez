@@ -22,9 +22,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BotDifficulty } from "@/lib/chess";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const location = useLocation();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -54,6 +55,27 @@ const Index = () => {
     setIsPlaying(true);
     setActiveTab("play");
   };
+
+  // Abre a partida para quem enviou o convite quando o outro aceita (INSERT em games com este usuário como jogador)
+  useEffect(() => {
+    if (!user?.id) return;
+    const onGameCreated = (payload: { new: { id: string } }) => {
+      const gameId = payload?.new?.id;
+      if (gameId) handleStartGame(gameId);
+    };
+    const chWhite = supabase
+      .channel("games-i-am-white")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "games", filter: `white_player_id=eq.${user.id}` }, onGameCreated)
+      .subscribe();
+    const chBlack = supabase
+      .channel("games-i-am-black")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "games", filter: `black_player_id=eq.${user.id}` }, onGameCreated)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(chWhite);
+      supabase.removeChannel(chBlack);
+    };
+  }, [user?.id]);
 
   const handleStartBotGame = (difficulty: BotDifficulty, timeControlSeconds: number, playerColor: "white" | "black") => {
     setIsBotGame(true);

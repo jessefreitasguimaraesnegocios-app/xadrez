@@ -1,5 +1,8 @@
 project_id = "wzairrwkccneltkhgztx"
 
+[functions.create-match]
+verify_jwt = false
+
 [functions.create-pix-deposit]
 # Deixamos a verificação de JWT por conta do código da função (auth.getUser()).
 verify_jwt = false
