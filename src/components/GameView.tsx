@@ -29,6 +29,8 @@ interface GameViewProps {
   botDifficulty?: BotDifficulty | null;
   /** When playing vs bot: which color the human plays. Default white. */
   botPlayerColor?: "white" | "black";
+  /** Chamado quando a partida termina (xeque-mate, empate, desistência, tempo). Usado para exibir de novo a barra inferior no mobile. */
+  onGameOverChange?: (isOver: boolean) => void;
 }
 
 const GameView = ({
@@ -38,6 +40,7 @@ const GameView = ({
   isBotGame = false,
   botDifficulty = null,
   botPlayerColor = "white",
+  onGameOverChange,
 }: GameViewProps) => {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -159,6 +162,10 @@ const GameView = ({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isFullscreen]);
+
+  useEffect(() => {
+    onGameOverChange?.(isGameOver);
+  }, [isGameOver, onGameOverChange]);
 
   return (
     <div

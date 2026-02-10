@@ -37,6 +37,7 @@ const Index = () => {
   }, [location.state]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [gameViewGameOver, setGameViewGameOver] = useState(false);
   const [isBotGame, setIsBotGame] = useState(false);
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty | null>(null);
   const [botTimeControl, setBotTimeControl] = useState<number>(600);
@@ -49,6 +50,7 @@ const Index = () => {
     setBotDifficulty(null);
     setGameKey((k) => k + 1);
     setMatchmakingGameId(gameId ?? null);
+    setGameViewGameOver(false);
     setIsPlaying(true);
     setActiveTab("play");
   };
@@ -59,6 +61,7 @@ const Index = () => {
     setBotTimeControl(timeControlSeconds);
     setBotPlayerColor(playerColor);
     setGameKey((k) => k + 1);
+    setGameViewGameOver(false);
     setIsPlaying(true);
     setActiveTab("play");
   };
@@ -69,11 +72,12 @@ const Index = () => {
     setBotDifficulty(null);
   };
 
+  const hideBottomNav = isPlaying && !gameViewGameOver;
   const mainContent = (
     <main
       className={
         isMobile
-          ? "flex-1 p-4 pb-24 overflow-auto min-h-0 safe-area-inset-bottom"
+          ? cn("flex-1 p-4 overflow-auto min-h-0 safe-area-inset-bottom", !hideBottomNav && "pb-24")
           : "flex-1 p-6 overflow-auto"
       }
     >
@@ -132,6 +136,7 @@ const Index = () => {
                   botDifficulty={botDifficulty}
                   botPlayerColor={isBotGame ? botPlayerColor : undefined}
                   timeControl={isBotGame ? botTimeControl : undefined}
+                  onGameOverChange={setGameViewGameOver}
                 />
               </div>
             ) : (
@@ -275,11 +280,13 @@ const Index = () => {
       {mainContent}
       {isMobile && (
         <>
-          <MobileBottomNav
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            onMenuClick={() => setMobileMenuOpen(true)}
-          />
+          {!hideBottomNav && (
+            <MobileBottomNav
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              onMenuClick={() => setMobileMenuOpen(true)}
+            />
+          )}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetContent side="left" className="p-0 w-[280px] max-w-[85vw] border-sidebar-border">
               <SidebarContent
