@@ -189,10 +189,11 @@ const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botD
       )}
 
       <div className={cn("relative", size === "xl" ? (fullscreen ? "w-full h-full min-w-0 min-h-0" : "w-full") : "inline-block")}>
-        <div className={cn("relative", size === "xl" ? "w-full h-full min-w-0 min-h-0" : "inline-block")}>
+        {/* Tabuleiro + peças capturadas em um bloco único para no mobile não “descer” */}
+        <div className={cn("relative flex flex-col items-center", size === "xl" && (fullscreen ? "w-full h-full min-w-0 min-h-0" : "w-full"))}>
           <div
             className={cn(
-              "grid grid-cols-8 grid-rows-8 rounded-lg overflow-hidden shadow-2xl border-2 border-border",
+              "grid grid-cols-8 grid-rows-8 rounded-lg overflow-hidden shadow-2xl border-2 border-border shrink-0",
               `board-theme-${boardTheme}`,
               sizeClasses[size],
               disabled && "pointer-events-none opacity-80"
@@ -260,12 +261,11 @@ const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botD
             })
           )}
           </div>
-        </div>
-
-        {/* Peças capturadas: logo abaixo do tabuleiro; no mobile mesma largura do board, no PC 31% */}
-        <div className="mt-1.5 lg:mt-2 w-full lg:w-[31.25%] min-w-0 flex flex-col gap-1">
-          <CapturedRow pieces={capturedByWhite} pieceColor="black" pieceSizeClass={capturedPieceSizeClass} />
-          <CapturedRow pieces={capturedByBlack} pieceColor="white" pieceSizeClass={capturedPieceSizeClass} />
+          {/* Peças capturadas: logo abaixo do tabuleiro; no mobile mesma largura do board, no PC 31% */}
+          <div className="mt-1.5 lg:mt-2 w-full lg:w-[31.25%] min-w-0 flex flex-col gap-1 shrink-0">
+            <CapturedRow pieces={capturedByWhite} pieceColor="black" pieceSizeClass={capturedPieceSizeClass} />
+            <CapturedRow pieces={capturedByBlack} pieceColor="white" pieceSizeClass={capturedPieceSizeClass} />
+          </div>
         </div>
       </div>
 
