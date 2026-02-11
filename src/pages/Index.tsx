@@ -40,6 +40,7 @@ const Index = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [gameViewGameOver, setGameViewGameOver] = useState(false);
+  const [gameViewGameStarted, setGameViewGameStarted] = useState(false);
   const [isBotGame, setIsBotGame] = useState(false);
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty | null>(null);
   const [botTimeControl, setBotTimeControl] = useState<number>(600);
@@ -88,6 +89,7 @@ const Index = () => {
     setBotColorMode(playerColor);
     setGameKey((k) => k + 1);
     setGameViewGameOver(false);
+    setGameViewGameStarted(false);
     setIsPlaying(true);
     setActiveTab("play");
   };
@@ -97,12 +99,24 @@ const Index = () => {
     setBotPlayerColor(color);
     setGameKey((k) => k + 1);
     setGameViewGameOver(false);
+    setGameViewGameStarted(false);
   };
 
   const handleExitBotGame = () => {
     setIsPlaying(false);
     setIsBotGame(false);
     setBotDifficulty(null);
+  };
+
+  const handleExitGame = () => {
+    setIsPlaying(false);
+    setMatchmakingGameId(null);
+    setGameViewGameOver(false);
+    setGameViewGameStarted(false);
+    if (isBotGame) {
+      setIsBotGame(false);
+      setBotDifficulty(null);
+    }
   };
 
   const hideBottomNav = isPlaying && !gameViewGameOver;
@@ -155,8 +169,8 @@ const Index = () => {
             
             {isPlaying ? (
               <div className="space-y-4">
-                {isBotGame && (
-                  <Button variant="outline" size="sm" onClick={handleExitBotGame} className="gap-2">
+                {(gameViewGameOver || !gameViewGameStarted) && (
+                  <Button variant="outline" size="sm" onClick={handleExitGame} className="gap-2">
                     <ArrowLeft className="w-4 h-4" />
                     Voltar ao menu
                   </Button>
@@ -171,6 +185,7 @@ const Index = () => {
                   timeControl={isBotGame ? botTimeControl : undefined}
                   onGameOverChange={setGameViewGameOver}
                   onNewGameRequested={isBotGame ? handleNewBotGame : undefined}
+                  onGameStartedChange={isBotGame ? setGameViewGameStarted : undefined}
                 />
               </div>
             ) : (

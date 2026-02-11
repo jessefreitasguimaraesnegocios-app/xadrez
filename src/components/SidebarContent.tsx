@@ -18,6 +18,7 @@ import {
   LogIn,
   Wallet,
   Camera,
+  Shield,
 } from "lucide-react";
 
 export const menuItems = [
@@ -46,6 +47,7 @@ export function SidebarContent({ activeTab, onTabChange, onItemClick, touchFrien
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const isWalletPage = pathname === "/wallet";
+  const isAdminPage = pathname === "/admin";
 
   const handleSignOut = async () => {
     await signOut();
@@ -195,6 +197,23 @@ export function SidebarContent({ activeTab, onTabChange, onItemClick, touchFrien
       </nav>
 
       <div className={cn("shrink-0 p-4 border-t border-sidebar-border space-y-1", touchFriendly && "space-y-0.5")}>
+        {profile?.is_admin && (
+          <Link to="/admin" onClick={onItemClick}>
+            <Button
+              variant="ghost"
+              className={cn(
+                "w-full justify-start gap-3 font-medium",
+                btnClass,
+                isAdminPage
+                  ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent"
+              )}
+            >
+              <Shield className="w-5 h-5" />
+              Administração
+            </Button>
+          </Link>
+        )}
         <Link to="/settings" onClick={onItemClick}>
           <Button
             variant="ghost"

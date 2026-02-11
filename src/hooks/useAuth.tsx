@@ -18,6 +18,7 @@ interface Profile {
   is_online: boolean;
   total_winnings: number;
   total_bet_amount: number;
+  is_admin?: boolean;
 }
 
 interface AuthContextType {

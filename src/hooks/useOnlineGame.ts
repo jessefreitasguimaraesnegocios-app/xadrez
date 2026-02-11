@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { GameState, Move, PieceColor } from "@/lib/chess";
 import { replayMoveHistory, serializeMove, applyMoveToState } from "@/lib/chess";
 import type { SerializedMove } from "@/lib/chess";
+import { invokeEdgeFunction } from "@/lib/edgeFunctionAuth";
 
 export type OnlineGameRow = {
   id: string;
@@ -11,6 +12,7 @@ export type OnlineGameRow = {
   move_history: unknown;
   status: string;
   result: string | null;
+  bet_amount?: number | null;
 };
 
 export type OpponentInfo = {
@@ -54,25 +56,29 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
   const isMyTurn =
     gameState && playerColor ? gameState.currentTurn === playerColor : false;
 
-  const fetchGame = useCallback(async () => {
+  const fetchGame = useCallback(async (silent = false) => {
     if (!gameId) {
       setGame(null);
       setOpponent(null);
       setLoading(false);
       return;
     }
-    setLoading(true);
-    setError(null);
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     const { data: gameRow, error: gameErr } = await supabase
       .from("games")
-      .select("id, white_player_id, black_player_id, move_history, status, result")
+      .select("id, white_player_id, black_player_id, move_history, status, result, bet_amount")
       .eq("id", gameId)
       .single();
 
     if (gameErr || !gameRow) {
-      setError(gameErr?.message ?? "Partida não encontrada");
-      setGame(null);
-      setOpponent(null);
+      if (!silent) {
+        setError(gameErr?.message ?? "Partida não encontrada");
+        setGame(null);
+        setOpponent(null);
+      }
       setLoading(false);
       return;
     }
@@ -80,26 +86,29 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
     const row = gameRow as Record<string, unknown>;
     const normalized: OnlineGameRow = {
       id: String(row.id ?? ""),
-      white_player_id: row.white_player_id != null ? String(row.white_player_id) : null,
-      black_player_id: row.black_player_id != null ? String(row.black_player_id) : null,
+      white_player_id: row.white_player_id != null ? String(row.white_player_id).trim().toLowerCase() : null,
+      black_player_id: row.black_player_id != null ? String(row.black_player_id).trim().toLowerCase() : null,
       move_history: Array.isArray(row.move_history) ? row.move_history : [],
       status: String(row.status ?? "in_progress"),
       result: row.result != null ? String(row.result) : null,
+      bet_amount: row.bet_amount != null && typeof row.bet_amount === "number" ? row.bet_amount : null,
     };
     setGame(normalized);
 
-    const { whiteId: wId, blackId: bId } = getPlayerIds(normalized);
-    const opponentId =
-      userId && (String(userId) === wId ? bId : String(userId) === bId ? wId : null);
-    if (opponentId) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("user_id, username, display_name, avatar_url, elo_rating")
-        .eq("user_id", opponentId)
-        .single();
-      setOpponent((profile as OpponentInfo) ?? null);
-    } else {
-      setOpponent(null);
+    if (!silent) {
+      const { whiteId: wId, blackId: bId } = getPlayerIds(normalized);
+      const uidNorm = userId ? String(userId).trim().toLowerCase() : "";
+      const opponentId = uidNorm && wId && bId ? (uidNorm === wId ? bId : uidNorm === bId ? wId : null) : null;
+      if (opponentId) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("user_id, username, display_name, avatar_url, elo_rating")
+          .eq("user_id", opponentId)
+          .single();
+        setOpponent((profile as OpponentInfo) ?? null);
+      } else {
+        setOpponent(null);
+      }
     }
     setLoading(false);
   }, [gameId, userId]);
@@ -116,18 +125,20 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` },
         (payload) => {
-          const raw = payload.new as Record<string, unknown>;
+          const raw = (payload?.new ?? payload) as Record<string, unknown>;
+          const rawMoveHistory = raw?.move_history ?? (raw as any)?.moveHistory;
           setGame((prev) => {
-            const moveHistory = Array.isArray(raw?.move_history)
-              ? raw.move_history
-              : (prev ? (prev.move_history as unknown[]) ?? [] : []);
+            const moveHistory = Array.isArray(rawMoveHistory)
+              ? rawMoveHistory
+              : (prev ? ((prev.move_history as unknown[]) ?? []) : []);
             const row: OnlineGameRow = {
               id: String(raw?.id ?? ""),
-              white_player_id: raw?.white_player_id != null ? String(raw.white_player_id) : null,
-              black_player_id: raw?.black_player_id != null ? String(raw.black_player_id) : null,
+              white_player_id: raw?.white_player_id != null ? String(raw.white_player_id).trim().toLowerCase() : null,
+              black_player_id: raw?.black_player_id != null ? String(raw.black_player_id).trim().toLowerCase() : null,
               move_history: moveHistory,
               status: String(raw?.status ?? ""),
               result: raw?.result != null ? String(raw.result) : null,
+              bet_amount: raw?.bet_amount != null && typeof raw.bet_amount === "number" ? raw.bet_amount : (prev?.bet_amount ?? null),
             };
             return prev ? { ...prev, ...row } : row;
           });
@@ -139,6 +150,17 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
     };
   }, [gameId]);
 
+  const isMyTurnRef = useRef(isMyTurn);
+  isMyTurnRef.current = isMyTurn;
+  useEffect(() => {
+    if (!gameId || !game || isMyTurnRef.current) return;
+    const interval = setInterval(() => {
+      if (isMyTurnRef.current) return;
+      fetchGame(true);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [gameId, game?.id, fetchGame]);
+
   const makeMove = useCallback(
     async (move: Move) => {
       if (!gameId || !userId) return;
@@ -149,18 +171,31 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
       const serialized = serializeMove(move);
       const newHistory = [...history, serialized];
       const nextState = applyMoveToState(stateToUse, move);
+      const betAmount = typeof current.bet_amount === "number" && current.bet_amount > 0 ? current.bet_amount : 0;
+      const isGameOver = nextState.isCheckmate || nextState.isStalemate || nextState.isDraw;
+      const result: string | null = nextState.isCheckmate
+        ? (nextState.currentTurn === "white" ? "black_wins" : "white_wins")
+        : nextState.isStalemate || nextState.isDraw
+          ? "draw"
+          : null;
+
       const updates: { move_history: SerializedMove[]; status?: string; result?: string } = {
         move_history: newHistory,
       };
-      if (nextState.isCheckmate) {
+      if (isGameOver && betAmount === 0) {
         updates.status = "completed";
-        updates.result = nextState.currentTurn === "white" ? "black_wins" : "white_wins";
-      } else if (nextState.isStalemate || nextState.isDraw) {
-        updates.status = "completed";
-        updates.result = "draw";
+        updates.result = result ?? "draw";
       }
 
-      setGame((prev) => (prev ? { ...prev, ...updates, move_history: newHistory } : prev));
+      setGame((prev) =>
+        prev
+          ? {
+              ...prev,
+              move_history: newHistory,
+              ...(isGameOver ? { status: "completed", result: result ?? "draw" } : {}),
+            }
+          : prev
+      );
 
       const { error: updateErr } = await supabase
         .from("games")
@@ -170,6 +205,26 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
       if (updateErr) {
         setError(updateErr.message);
         setGame((prev) => (prev ? { ...prev, move_history: history } : prev));
+        return;
+      }
+
+      if (isGameOver && betAmount > 0 && result) {
+        const {
+          data: { session },
+          error: sessionErr,
+        } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          const { error: finishErr } = await invokeEdgeFunction(
+            { access_token: session.access_token },
+            "finish-game",
+            { gameId, result }
+          );
+          if (finishErr) {
+            setError(finishErr.message);
+          }
+        } else if (sessionErr) {
+          setError(sessionErr.message ?? "Sessão inválida para encerrar aposta.");
+        }
       }
     },
     [gameId, userId]
@@ -184,5 +239,6 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
     isMyTurn,
     makeMove,
     refetch: fetchGame,
+    betAmount: typeof game?.bet_amount === "number" && game.bet_amount > 0 ? game.bet_amount : null,
   };
 }
