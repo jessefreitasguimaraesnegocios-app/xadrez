@@ -209,10 +209,7 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
       }
 
       if (isGameOver && betAmount > 0 && result) {
-        const {
-          data: { session },
-          error: sessionErr,
-        } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionErr } = await supabase.auth.refreshSession();
         if (session?.access_token) {
           const { error: finishErr } = await invokeEdgeFunction(
             { access_token: session.access_token },

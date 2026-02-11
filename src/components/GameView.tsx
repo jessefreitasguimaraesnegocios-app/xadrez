@@ -151,12 +151,15 @@ const GameView = ({
     setIsGameOver(false);
     setIsPlayerTurn(isBotGame ? botPlayerColor === "white" : true);
     setPreGameCountdown(30);
-    if (isBotGame && botPlayerColor === "black") {
+    // Em partida online o relógio de 10 min só começa após a primeira jogada (handleFirstMove)
+    if (isOnlineGame) {
+      setHasClockStarted(false);
+    } else if (isBotGame && botPlayerColor === "black") {
       setHasClockStarted(true);
     } else {
       setHasClockStarted(false);
     }
-  }, [isBotGame, botDifficulty, botPlayerColor]);
+  }, [isBotGame, botDifficulty, botPlayerColor, isOnlineGame]);
 
   // Pre-game: 30s to make first move; if time runs out, cancel game
   useEffect(() => {
@@ -301,7 +304,7 @@ const GameView = ({
               <GameTimer
                 key={`player-timer-${timerResetKey}`}
                 initialTime={playerTime}
-                isActive={!isGameOver && isPlayerTurn}
+                isActive={hasClockStarted && !isGameOver && isPlayerTurn}
                 isPlayer={true}
                 onTimeUp={handlePlayerTimeUp}
               />
@@ -367,6 +370,8 @@ const GameView = ({
             matchBetAmount={isOnlineGame ? onlineBetAmount ?? null : null}
             isGameOver={isOnlineGame && !!onlineGameState && (onlineGameState.isCheckmate || onlineGameState.isStalemate || onlineGameState.isDraw)}
             result={isOnlineGame && onlineGameState ? (onlineGameState.isCheckmate ? (onlineGameState.currentTurn === 'white' ? 'black_wins' : 'white_wins') : (onlineGameState.isStalemate || onlineGameState.isDraw) ? 'draw' : null) : null}
+            playerAvatarUrl={profile?.avatar_url ?? null}
+            opponentAvatarUrl={isOnlineGame && onlineOpponent ? (onlineOpponent.avatar_url ?? null) : null}
           />
         </div>
       )}

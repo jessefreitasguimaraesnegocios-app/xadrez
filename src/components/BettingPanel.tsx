@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Coins, AlertTriangle, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -18,6 +18,8 @@ interface BettingPanelProps {
   /** Partida encerrada: exibe resultado (white_wins, black_wins, draw) */
   isGameOver?: boolean;
   result?: string | null;
+  playerAvatarUrl?: string | null;
+  opponentAvatarUrl?: string | null;
 }
 
 const BettingPanel = ({
@@ -30,6 +32,8 @@ const BettingPanel = ({
   matchBetAmount,
   isGameOver,
   result,
+  playerAvatarUrl,
+  opponentAvatarUrl,
 }: BettingPanelProps) => {
   const [betAmount, setBetAmount] = useState(minBet);
   const [confirmed, setConfirmed] = useState(false);
@@ -85,6 +89,7 @@ const BettingPanel = ({
       <div className="flex items-center justify-between mb-6 p-4 rounded-lg bg-secondary">
         <div className="flex items-center gap-3">
           <Avatar className="w-12 h-12 ring-2 ring-bet-win">
+            {playerAvatarUrl ? <AvatarImage src={playerAvatarUrl} alt={playerName} /> : null}
             <AvatarFallback className="bg-primary text-primary-foreground">
               {playerName.slice(0, 2).toUpperCase()}
             </AvatarFallback>
@@ -103,6 +108,7 @@ const BettingPanel = ({
             <p className="text-sm text-muted-foreground">{opponentRating} ELO</p>
           </div>
           <Avatar className="w-12 h-12 ring-2 ring-bet-lose">
+            {opponentAvatarUrl ? <AvatarImage src={opponentAvatarUrl} alt={opponentName} /> : null}
             <AvatarFallback className="bg-muted text-muted-foreground">
               {opponentName.slice(0, 2).toUpperCase()}
             </AvatarFallback>

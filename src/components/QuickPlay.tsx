@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Clock, Zap, Timer, Infinity, Loader2, X, Wallet } from "lucide-react";
@@ -82,10 +82,11 @@ const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
     setSelectedMode(null);
   };
 
-  // If match found, start the game (pass gameId so GameView can load the right game)
-  if (matchFound) {
-    onStartGame(gameId ?? undefined);
-  }
+  useEffect(() => {
+    if (matchFound && gameId) {
+      onStartGame(gameId);
+    }
+  }, [matchFound, gameId, onStartGame]);
 
   return (
     <div className="space-y-4">
