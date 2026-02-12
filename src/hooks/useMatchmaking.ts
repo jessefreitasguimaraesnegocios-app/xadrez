@@ -120,21 +120,18 @@ export const useMatchmaking = () => {
     }
 
     try {
-      // Remove from queue if already in
-      await supabase
-        .from('matchmaking_queue')
-        .delete()
-        .eq('user_id', user.id);
-
-      // Add to queue
       const { error: queueError } = await supabase
         .from('matchmaking_queue')
-        .insert({
-          user_id: user.id,
-          elo_rating: profile.elo_rating,
-          time_control: timeControl,
-          bet_amount: betAmount,
-        });
+        .upsert(
+          {
+            user_id: user.id,
+            elo_rating: profile.elo_rating,
+            time_control: timeControl,
+            bet_amount: betAmount,
+            joined_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' }
+        );
 
       if (queueError) throw queueError;
 
