@@ -19,7 +19,7 @@ interface MobileBottomNavProps {
 }
 
 export function MobileBottomNav({ activeTab, onTabChange, onMenuClick, className }: MobileBottomNavProps) {
-  const unreadCount = useUnreadDirectCount();
+  const { count: unreadCount } = useUnreadDirectCount();
   const { receivedPending: gameInvitesReceived } = useGameInvites();
   const gameInvitesCount = gameInvitesReceived.length;
 

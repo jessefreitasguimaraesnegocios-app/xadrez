@@ -51,5 +51,5 @@ export function useUnreadDirectCount() {
     return () => window.removeEventListener(DIRECT_MESSAGES_READ_EVENT, handler);
   }, [fetchCount]);
 
-  return count;
+  return { count, refetch: fetchCount };
 }

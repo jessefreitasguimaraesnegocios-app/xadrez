@@ -43,7 +43,7 @@ interface SidebarContentProps {
 export function SidebarContent({ activeTab, onTabChange, onItemClick, touchFriendly }: SidebarContentProps) {
   const { user, profile, signOut, loading } = useAuth();
   const { balance_available } = useWallet();
-  const unreadDirectCount = useUnreadDirectCount();
+  const { count: unreadDirectCount, refetch: refetchUnread } = useUnreadDirectCount();
   const { receivedPending: gameInvitesReceived } = useGameInvites();
   const gameInvitesCount = gameInvitesReceived.length;
   const { handleAvatarUpload, uploading } = useAvatarUpload();
@@ -63,8 +63,10 @@ export function SidebarContent({ activeTab, onTabChange, onItemClick, touchFrien
       navigate("/wallet");
     } else if (pathname === "/") {
       onTabChange(itemId);
+      if (itemId === "friends") refetchUnread();
     } else {
       navigate("/", { state: { tab: itemId } });
+      if (itemId === "friends") refetchUnread();
     }
     onItemClick?.();
   };
