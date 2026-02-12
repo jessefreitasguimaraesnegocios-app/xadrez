@@ -163,11 +163,13 @@ export function useGameInvites() {
 
   const declineInvite = useCallback(
     async (inviteId: string) => {
+      if (!user) return;
       setDecliningId(inviteId);
       await supabase.from("game_invites").update({ status: "declined" }).eq("id", inviteId);
+      await fetchReceivedPending(user.id);
       setDecliningId(null);
     },
-    []
+    [user, fetchReceivedPending]
   );
 
   return {

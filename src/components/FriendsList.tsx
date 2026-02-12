@@ -62,7 +62,8 @@ function GameInviteCard({
   tournamentBlock?: { blocksPlaying: boolean; minutesLeft: number | null };
 }) {
   const rawName = displayName({ display_name: invite.from_display_name, username: invite.from_username ?? "" });
-  const name = typeof rawName === "string" && rawName && rawName !== "NaN" ? rawName : "Usuário";
+  const raw = typeof rawName === "string" ? String(rawName).trim() : "";
+  const name = raw && raw !== "NaN" && !/^nan$/i.test(raw) ? raw : "Usuário";
   const hasBet = invite.bet_amount != null && invite.bet_amount > 0;
   const betNum = Number(invite.bet_amount);
   const betFormatted = hasBet && !Number.isNaN(betNum) ? betNum.toFixed(2) : "0.00";

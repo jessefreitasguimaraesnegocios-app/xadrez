@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useWallet } from "@/hooks/useWallet";
 import { useUnreadDirectCount } from "@/hooks/useUnreadDirectCount";
+import { useGameInvites } from "@/hooks/useGameInvites";
 import { useAvatarUpload } from "@/hooks/useAvatarUpload";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import {
@@ -43,6 +44,8 @@ export function SidebarContent({ activeTab, onTabChange, onItemClick, touchFrien
   const { user, profile, signOut, loading } = useAuth();
   const { balance_available } = useWallet();
   const unreadDirectCount = useUnreadDirectCount();
+  const { receivedPending: gameInvitesReceived } = useGameInvites();
+  const gameInvitesCount = gameInvitesReceived.length;
   const { handleAvatarUpload, uploading } = useAvatarUpload();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -184,6 +187,11 @@ export function SidebarContent({ activeTab, onTabChange, onItemClick, touchFrien
                 >
                   <item.icon className="w-5 h-5 shrink-0" />
                   <span className="flex-1 text-left">{item.label}</span>
+                  {item.id === "play" && gameInvitesCount > 0 && (
+                    <span className="notification-badge min-w-[18px] h-[18px] px-1.5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-semibold">
+                      {gameInvitesCount > 99 ? "99+" : gameInvitesCount}
+                    </span>
+                  )}
                   {item.id === "friends" && unreadDirectCount > 0 && (
                     <span className="notification-badge min-w-[18px] h-[18px] px-1.5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-semibold">
                       {unreadDirectCount > 99 ? "99+" : unreadDirectCount}

@@ -127,32 +127,15 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` },
-        (payload) => {
-          const raw = (payload?.new ?? payload) as Record<string, unknown>;
-          const rawMoveHistory = raw?.move_history ?? (raw as any)?.moveHistory;
-          setGame((prev) => {
-            const moveHistory = Array.isArray(rawMoveHistory)
-              ? rawMoveHistory
-              : (prev ? ((prev.move_history as unknown[]) ?? []) : []);
-            const row: OnlineGameRow = {
-              id: String(raw?.id ?? ""),
-              white_player_id: raw?.white_player_id != null ? String(raw.white_player_id).trim().toLowerCase() : null,
-              black_player_id: raw?.black_player_id != null ? String(raw.black_player_id).trim().toLowerCase() : null,
-              move_history: moveHistory,
-              status: String(raw?.status ?? ""),
-              result: raw?.result != null ? String(raw.result) : null,
-              bet_amount: raw?.bet_amount != null && typeof raw.bet_amount === "number" ? raw.bet_amount : (prev?.bet_amount ?? null),
-              time_control: raw?.time_control != null ? String(raw.time_control).trim() || null : (prev?.time_control ?? null),
-            };
-            return prev ? { ...prev, ...row } : row;
-          });
+        () => {
+          fetchGame(true);
         }
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [gameId]);
+  }, [gameId, fetchGame]);
 
   const isMyTurnRef = useRef(isMyTurn);
   isMyTurnRef.current = isMyTurn;
