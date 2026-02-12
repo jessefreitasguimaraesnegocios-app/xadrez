@@ -19,6 +19,8 @@ interface MatchmakingState {
   estimatedWait: string;
   matchFound: boolean;
   gameId: string | null;
+  searchTimeControl: string | null;
+  searchBetAmount: number | null;
 }
 
 export const useMatchmaking = () => {
@@ -30,6 +32,8 @@ export const useMatchmaking = () => {
     estimatedWait: '--',
     matchFound: false,
     gameId: null,
+    searchTimeControl: null,
+    searchBetAmount: null,
   });
 
   // Listen for queue changes and match creation
@@ -54,6 +58,8 @@ export const useMatchmaking = () => {
               matchFound: true,
               gameId: payload.new.id,
               isSearching: false,
+              searchTimeControl: null,
+              searchBetAmount: null,
             }));
             toast({
               title: 'Partida encontrada!',
@@ -78,6 +84,8 @@ export const useMatchmaking = () => {
               matchFound: true,
               gameId: payload.new.id,
               isSearching: false,
+              searchTimeControl: null,
+              searchBetAmount: null,
             }));
             toast({
               title: 'Partida encontrada!',
@@ -92,6 +100,14 @@ export const useMatchmaking = () => {
       supabase.removeChannel(channel);
     };
   }, [user, state.isSearching, toast]);
+
+  useEffect(() => {
+    if (!state.isSearching || !state.searchTimeControl || state.searchBetAmount == null || !user || !profile) return;
+    const interval = setInterval(() => {
+      findMatch(state.searchTimeControl!, state.searchBetAmount!);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [state.isSearching, state.searchTimeControl, state.searchBetAmount, user?.id, profile?.elo_rating]);
 
   const joinQueue = useCallback(async (timeControl: string, betAmount: number = 0) => {
     if (!user || !profile) {
@@ -127,9 +143,10 @@ export const useMatchmaking = () => {
         isSearching: true,
         matchFound: false,
         gameId: null,
+        searchTimeControl: timeControl,
+        searchBetAmount: betAmount,
       }));
 
-      // Try to find a match
       await findMatch(timeControl, betAmount);
     } catch (error) {
       console.error('Error joining queue:', error);
@@ -145,7 +162,7 @@ export const useMatchmaking = () => {
     if (!user || !profile) return;
 
     const isNormal = betAmount === 0;
-    const eloRange = isNormal ? 100 : 200;
+    const eloRange = 100;
 
     let query = supabase
       .from('matchmaking_queue')
@@ -172,6 +189,14 @@ export const useMatchmaking = () => {
 
     if (opponents && opponents.length > 0) {
       const opponent = opponents[0] as QueueEntry;
+      const { data: claimed } = await supabase
+        .from('matchmaking_queue')
+        .delete()
+        .eq('user_id', opponent.user_id)
+        .select('id');
+      if (!claimed?.length) {
+        return;
+      }
       const finalBet = Math.min(betAmount, opponent.bet_amount ?? 0);
 
       if (finalBet > 0) {
@@ -210,12 +235,14 @@ export const useMatchmaking = () => {
         }
 
         const gameId = fnData?.id ?? null;
-        await supabase.from('matchmaking_queue').delete().in('user_id', [user.id, opponent.user_id]);
+        await supabase.from('matchmaking_queue').delete().eq('user_id', user.id);
         setState(prev => ({
           ...prev,
           matchFound: true,
           gameId,
           isSearching: false,
+          searchTimeControl: null,
+          searchBetAmount: null,
         }));
         toast({ title: 'Partida encontrada!', description: 'O jogo vai começar!' });
         return;
@@ -245,12 +272,14 @@ export const useMatchmaking = () => {
         return;
       }
 
-      await supabase.from('matchmaking_queue').delete().in('user_id', [user.id, opponent.user_id]);
+      await supabase.from('matchmaking_queue').delete().eq('user_id', user.id);
       setState(prev => ({
         ...prev,
         matchFound: true,
         gameId: game.id,
         isSearching: false,
+        searchTimeControl: null,
+        searchBetAmount: null,
       }));
       toast({ title: 'Partida encontrada!', description: 'O jogo vai começar!' });
     }
@@ -271,6 +300,8 @@ export const useMatchmaking = () => {
         estimatedWait: '--',
         matchFound: false,
         gameId: null,
+        searchTimeControl: null,
+        searchBetAmount: null,
       });
     } catch (error) {
       console.error('Error leaving queue:', error);
@@ -284,6 +315,8 @@ export const useMatchmaking = () => {
       estimatedWait: '--',
       matchFound: false,
       gameId: null,
+      searchTimeControl: null,
+      searchBetAmount: null,
     });
   }, []);
 
