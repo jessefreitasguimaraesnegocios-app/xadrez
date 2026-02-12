@@ -42,16 +42,10 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const gameId = body?.gameId ?? body?.game_id;
     const result = body?.result;
-    if (!gameId || !["white_wins", "black_wins", "draw"].includes(result)) {
-      return new Response(
-        JSON.stringify({ error: "gameId and result (white_wins|black_wins|draw) required" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    }
 
     const { data: game, error: gameErr } = await supabase
       .from("games")
-      .select("id, white_player_id, black_player_id, bet_amount, status")
+      .select("id, white_player_id, black_player_id, bet_amount, status, result")
       .eq("id", gameId)
       .single();
 
@@ -62,11 +56,13 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    if (game.status !== "in_progress") {
-      return new Response(JSON.stringify({ error: "Game is not in progress" }), {
-        status: 400,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      });
+    const isAlreadyCompleted = game.status === "completed";
+    const effectiveResult = (isAlreadyCompleted ? game.result : result) as string | null;
+    if (!effectiveResult || !["white_wins", "black_wins", "draw"].includes(effectiveResult)) {
+      return new Response(
+        JSON.stringify({ error: "gameId and result (white_wins|black_wins|draw) required" }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
     }
 
     if (userId !== game.white_player_id && userId !== game.black_player_id) {
@@ -92,10 +88,10 @@ Deno.serve(async (req: Request) => {
 
       const pot = bet * 2;
       const winnerPayout = Math.round((pot * (1 - HOUSE_CUT_PCT)) * 100) / 100;
-      if (result === "white_wins" && userId === whiteId) amountWonUser = winnerPayout;
-      else if (result === "black_wins" && userId === blackId) amountWonUser = winnerPayout;
+      if (effectiveResult === "white_wins" && userId === whiteId) amountWonUser = winnerPayout;
+      else if (effectiveResult === "black_wins" && userId === blackId) amountWonUser = winnerPayout;
 
-      if (result === "draw") {
+      if (effectiveResult === "draw") {
         await supabase.from("wallets").update({
           balance_available: whiteAvail + bet,
           balance_locked: whiteLocked - bet,
@@ -110,7 +106,7 @@ Deno.serve(async (req: Request) => {
           { user_id: whiteId, type: "bet_refund", amount: bet, status: "completed", metadata: { game_id: gameId } },
           { user_id: blackId, type: "bet_refund", amount: bet, status: "completed", metadata: { game_id: gameId } },
         ]);
-      } else if (result === "white_wins") {
+      } else if (effectiveResult === "white_wins") {
         await supabase.from("wallets").update({
           balance_available: whiteAvail + winnerPayout,
           balance_locked: whiteLocked - bet,
@@ -141,32 +137,34 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    await supabase
-      .from("games")
-      .update({
-        status: "completed",
-        result,
-        ended_at: new Date().toISOString(),
-      })
-      .eq("id", gameId);
+    if (!isAlreadyCompleted) {
+      await supabase
+        .from("games")
+        .update({
+          status: "completed",
+          result: effectiveResult,
+          ended_at: new Date().toISOString(),
+        })
+        .eq("id", gameId);
+    }
 
     const { data: pWhite } = await supabase.from("profiles").select("wins, losses, draws, total_winnings, total_bet_amount, elo_rating").eq("user_id", whiteId).single();
     const { data: pBlack } = await supabase.from("profiles").select("wins, losses, draws, total_winnings, total_bet_amount, elo_rating").eq("user_id", blackId).single();
 
-    const winsWhite = pWhite ? pWhite.wins + (result === "white_wins" ? 1 : 0) : 0;
-    const lossesWhite = pWhite ? pWhite.losses + (result === "black_wins" ? 1 : 0) : 0;
-    const drawsWhite = pWhite ? pWhite.draws + (result === "draw" ? 1 : 0) : 0;
-    const winsBlack = pBlack ? pBlack.wins + (result === "black_wins" ? 1 : 0) : 0;
-    const lossesBlack = pBlack ? pBlack.losses + (result === "white_wins" ? 1 : 0) : 0;
-    const drawsBlack = pBlack ? pBlack.draws + (result === "draw" ? 1 : 0) : 0;
+    const winsWhite = pWhite ? pWhite.wins + (effectiveResult === "white_wins" ? 1 : 0) : 0;
+    const lossesWhite = pWhite ? pWhite.losses + (effectiveResult === "black_wins" ? 1 : 0) : 0;
+    const drawsWhite = pWhite ? pWhite.draws + (effectiveResult === "draw" ? 1 : 0) : 0;
+    const winsBlack = pBlack ? pBlack.wins + (effectiveResult === "black_wins" ? 1 : 0) : 0;
+    const lossesBlack = pBlack ? pBlack.losses + (effectiveResult === "white_wins" ? 1 : 0) : 0;
+    const drawsBlack = pBlack ? pBlack.draws + (effectiveResult === "draw" ? 1 : 0) : 0;
 
     if (bet === 0 && pWhite?.elo_rating != null && pBlack?.elo_rating != null) {
       const K = 32;
       const eloW = Number(pWhite.elo_rating);
       const eloB = Number(pBlack.elo_rating);
       const expectedW = 1 / (1 + Math.pow(10, (eloB - eloW) / 400));
-      const scoreW = result === "white_wins" ? 1 : result === "draw" ? 0.5 : 0;
-      const scoreB = result === "black_wins" ? 1 : result === "draw" ? 0.5 : 0;
+      const scoreW = effectiveResult === "white_wins" ? 1 : effectiveResult === "draw" ? 0.5 : 0;
+      const scoreB = effectiveResult === "black_wins" ? 1 : effectiveResult === "draw" ? 0.5 : 0;
       const newEloW = Math.max(100, Math.round(eloW + K * (scoreW - expectedW)));
       const newEloB = Math.max(100, Math.round(eloB + K * (scoreB - (1 - expectedW))));
       if (userId === whiteId) eloChangeUser = newEloW - eloW;
@@ -189,14 +187,14 @@ Deno.serve(async (req: Request) => {
       }).eq("user_id", blackId);
     } else {
       if (pWhite) {
-        const totalWinnings = result === "white_wins" && bet > 0
+        const totalWinnings = effectiveResult === "white_wins" && bet > 0
           ? pWhite.total_winnings + Math.round(bet * 2 * (1 - HOUSE_CUT_PCT) * 100) / 100 - bet
           : pWhite.total_winnings;
         const totalBet = pWhite.total_bet_amount + (bet > 0 ? bet : 0);
         await supabase.from("profiles").update({ wins: winsWhite, losses: lossesWhite, draws: drawsWhite, total_winnings: totalWinnings, total_bet_amount: totalBet }).eq("user_id", whiteId);
       }
       if (pBlack) {
-        const totalWinnings = result === "black_wins" && bet > 0
+        const totalWinnings = effectiveResult === "black_wins" && bet > 0
           ? pBlack.total_winnings + Math.round(bet * 2 * (1 - HOUSE_CUT_PCT) * 100) / 100 - bet
           : pBlack.total_winnings;
         const totalBet = pBlack.total_bet_amount + (bet > 0 ? bet : 0);
@@ -204,7 +202,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const bodyRes: { ok: boolean; result: string; eloChange?: number; amountWon?: number } = { ok: true, result };
+    const bodyRes: { ok: boolean; result: string; eloChange?: number; amountWon?: number } = { ok: true, result: effectiveResult };
     if (eloChangeUser != null) bodyRes.eloChange = eloChangeUser;
     if (amountWonUser != null) bodyRes.amountWon = amountWonUser;
     return new Response(JSON.stringify(bodyRes), {

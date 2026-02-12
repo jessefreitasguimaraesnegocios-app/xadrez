@@ -49,7 +49,7 @@ const GameView = ({
   onNewGameRequested,
   onGameStartedChange,
 }: GameViewProps) => {
-  const { profile, user } = useAuth();
+  const { profile, user, refetchProfile } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -67,6 +67,10 @@ const GameView = ({
     timeControlSeconds: onlineTimeControlSeconds,
     lastFinishReward,
   } = useOnlineGame(isOnlineGame ? gameId : null, user?.id ?? null);
+
+  useEffect(() => {
+    if (lastFinishReward) refetchProfile();
+  }, [lastFinishReward, refetchProfile]);
 
   const effectiveTimeControl = isOnlineGame ? onlineTimeControlSeconds : timeControl;
 

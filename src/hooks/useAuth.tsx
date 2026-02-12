@@ -30,6 +30,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateProfile: (data: Partial<Profile>) => Promise<{ error: Error | null }>;
+  refetchProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -198,6 +199,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const refetchProfile = async () => {
+    if (user?.id) {
+      const data = await fetchProfile(user.id);
+      setProfile(data);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -209,6 +217,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         signIn,
         signOut,
         updateProfile,
+        refetchProfile,
       }}
     >
       {children}

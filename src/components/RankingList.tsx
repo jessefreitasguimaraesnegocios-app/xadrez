@@ -11,6 +11,7 @@ type ProfileRow = {
   elo_rating: number;
   wins: number;
   losses: number;
+  draws: number;
   is_online: boolean;
 };
 
@@ -27,7 +28,7 @@ const RankingList = ({ variant = "full", limit = 10 }: RankingListProps) => {
     const load = async () => {
       const query = supabase
         .from("profiles")
-        .select("user_id, username, display_name, avatar_url, elo_rating, wins, losses, is_online")
+        .select("user_id, username, display_name, avatar_url, elo_rating, wins, losses, draws, is_online")
         .order("elo_rating", { ascending: false })
         .limit(limit ?? 50);
 
@@ -69,6 +70,7 @@ const RankingList = ({ variant = "full", limit = 10 }: RankingListProps) => {
                 rank={player.rank}
                 wins={player.wins}
                 losses={player.losses}
+                draws={player.draws ?? 0}
                 isOnline={player.is_online}
                 variant={variant === "compact" ? "compact" : "default"}
               />

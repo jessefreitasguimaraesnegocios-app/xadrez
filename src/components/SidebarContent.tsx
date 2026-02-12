@@ -127,7 +127,7 @@ export function SidebarContent({ activeTab, onTabChange, onItemClick, touchFrien
               <Link to="/profile" className="flex-1 min-w-0" onClick={onItemClick}>
                 <p className="font-medium text-sm truncate">{profile.display_name || profile.username}</p>
                 <p className="text-xs text-sidebar-foreground/60">
-                  {profile.elo_rating} ELO • {profile.wins}V/{profile.losses}D
+                  {profile.elo_rating} ELO • {profile.wins}V {profile.draws}E {profile.losses}D
                 </p>
               </Link>
             </div>

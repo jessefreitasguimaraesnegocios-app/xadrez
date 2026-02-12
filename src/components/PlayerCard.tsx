@@ -10,6 +10,7 @@ interface PlayerCardProps {
   rank: number;
   wins: number;
   losses: number;
+  draws?: number;
   isOnline?: boolean;
   variant?: "default" | "compact";
 }
@@ -21,6 +22,7 @@ const PlayerCard = ({
   rank,
   wins,
   losses,
+  draws = 0,
   isOnline = false,
   variant = "default",
 }: PlayerCardProps) => {
@@ -85,8 +87,9 @@ const PlayerCard = ({
             <Badge variant="secondary" className="font-mono">
               {rating} ELO
             </Badge>
-            <span className="text-sm text-bet-win">{wins}W</span>
-            <span className="text-sm text-bet-lose">{losses}L</span>
+            <span className="text-sm text-bet-win">{wins}V</span>
+            <span className="text-sm text-muted-foreground">{draws}E</span>
+            <span className="text-sm text-bet-lose">{losses}D</span>
           </div>
         </div>
       </div>
