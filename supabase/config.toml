@@ -38,3 +38,11 @@ verify_jwt = false
 # Sem verify_jwt = false o gateway retorna 401 antes do handler rodar.
 # Validação opcional no código via header asaas-access-token e ASAAS_WITHDRAW_VALIDATE_TOKEN.
 verify_jwt = false
+
+[functions.make-move]
+# JWT validado no código da função (auth.getUser()); gateway não bloqueia o request.
+verify_jwt = false
+
+[functions.finish-game]
+# JWT validado no código da função (auth.getUser()).
+verify_jwt = false

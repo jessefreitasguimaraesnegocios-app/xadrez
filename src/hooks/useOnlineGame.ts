@@ -207,13 +207,6 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
           : prev
       );
 
-      const { data: { session }, error: sessionErr } = await supabase.auth.refreshSession();
-      if (sessionErr || !session?.access_token) {
-        setError(sessionErr?.message ?? "Sessão inválida.");
-        setGame((prev) => (prev ? { ...prev, move_history: history } : prev));
-        return;
-      }
-
       type MakeMoveResponse = {
         ok?: boolean;
         white_remaining_time?: number;
@@ -222,15 +215,37 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
         status?: string;
         result?: string | null;
       };
-      const { data: moveData, error: moveErr } = await invokeEdgeFunction<MakeMoveResponse>(
+
+      let session = (await supabase.auth.getSession()).data.session;
+      if (!session?.access_token) {
+        const { data: refreshData, error: sessionErr } = await supabase.auth.refreshSession();
+        session = refreshData.session;
+        if (sessionErr || !session?.access_token) {
+          setError(sessionErr?.message ?? "Sessão expirada. Faça login novamente.");
+          setGame((prev) => (prev ? { ...prev, move_history: history } : prev));
+          return;
+        }
+      }
+
+      let { data: moveData, error: moveErr } = await invokeEdgeFunction<MakeMoveResponse>(
         { access_token: session.access_token },
         "make-move",
-        {
-          gameId,
-          move: serialized,
-          ...(isGameOver && result ? { result } : {}),
-        }
+        { gameId, move: serialized, ...(isGameOver && result ? { result } : {}) }
       );
+
+      if (moveErr?.message?.toLowerCase().includes("unauthorized") && session.access_token) {
+        const { data: refreshData } = await supabase.auth.refreshSession();
+        const newSession = refreshData?.session;
+        if (newSession?.access_token) {
+          const retry = await invokeEdgeFunction<MakeMoveResponse>(
+            { access_token: newSession.access_token },
+            "make-move",
+            { gameId, move: serialized, ...(isGameOver && result ? { result } : {}) }
+          );
+          moveData = retry.data;
+          moveErr = retry.error;
+        }
+      }
 
       if (moveErr) {
         setError(moveErr.message);
@@ -256,7 +271,7 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
 
       if (moveData?.status === "completed" && moveData?.result) {
         finishedGameIdRef.current = gameId;
-        const { data: { session: s2 }, error: sessionErr2 } = await supabase.auth.refreshSession();
+        const s2 = (await supabase.auth.getSession()).data.session ?? session;
         if (s2?.access_token) {
           const { data: finishData, error: finishErr } = await invokeEdgeFunction<{ ok?: boolean; eloChange?: number; amountWon?: number }>(
             { access_token: s2.access_token },
@@ -271,8 +286,6 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
               amountWon: finishData.amountWon,
             });
           }
-        } else if (sessionErr2) {
-          setError(sessionErr2.message ?? "Sessão inválida para encerrar partida.");
         }
       }
     },
