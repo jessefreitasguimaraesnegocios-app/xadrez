@@ -141,8 +141,8 @@ const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botD
           const n = counts[type];
           if (n === 0) return null;
           const symbol = pieceSymbols[type][pieceColor];
-          const maxIcons = type === "pawn" ? 2 : Math.min(n, 2);
-          const showNumber = n > 2 || (type === "pawn" && n > 2);
+          const maxIcons = Math.min(n, 2);
+          const showNumber = n > 2;
           return (
             <div key={type} className="relative inline-flex items-center justify-center gap-0.5">
               {Array.from({ length: maxIcons }, (_, i) => (

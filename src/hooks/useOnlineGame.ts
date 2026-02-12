@@ -144,14 +144,9 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
     };
   }, [gameId, fetchGame]);
 
-  const isMyTurnRef = useRef(isMyTurn);
-  isMyTurnRef.current = isMyTurn;
   useEffect(() => {
-    if (!gameId || !game || isMyTurnRef.current) return;
-    const interval = setInterval(() => {
-      if (isMyTurnRef.current) return;
-      fetchGame(true);
-    }, 3000);
+    if (!gameId || !game) return;
+    const interval = setInterval(() => fetchGame(true), 2000);
     return () => clearInterval(interval);
   }, [gameId, game?.id, fetchGame]);
 
