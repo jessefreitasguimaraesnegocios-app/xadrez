@@ -159,80 +159,17 @@ export const useMatchmaking = () => {
     if (!user || !profile) return;
 
     const isNormal = betAmount === 0;
-    const eloRange = 100;
-
-    let query = supabase
-      .from('matchmaking_queue')
-      .select('*')
-      .eq('time_control', timeControl)
-      .neq('user_id', user.id)
-      .gte('elo_rating', profile.elo_rating - eloRange)
-      .lte('elo_rating', profile.elo_rating + eloRange)
-      .order('joined_at', { ascending: true })
-      .limit(1);
 
     if (isNormal) {
-      query = query.eq('bet_amount', 0);
-    } else {
-      query = query.gt('bet_amount', 0);
-    }
-
-    const { data: opponents, error } = await query;
-
-    if (error) {
-      console.error('Error finding match:', error);
-      return;
-    }
-
-    if (opponents && opponents.length > 0) {
-      const opponent = opponents[0] as QueueEntry;
-      const { data: claimed } = await supabase
-        .from('matchmaking_queue')
-        .delete()
-        .eq('user_id', opponent.user_id)
-        .select('id');
-      if (!claimed?.length) {
+      const { data: gameId, error } = await supabase.rpc('matchmaking_find_and_create_game', {
+        p_time_control: timeControl,
+        p_bet_amount: 0,
+      });
+      if (error) {
+        console.error('Error matchmaking RPC:', error);
         return;
       }
-      const finalBet = Math.min(betAmount, opponent.bet_amount ?? 0);
-
-      if (finalBet > 0) {
-        const { data: { session: refreshed }, error: sessionError } = await supabase.auth.refreshSession();
-        if (sessionError || !refreshed?.access_token) {
-          await supabase.auth.signOut();
-          toast({
-            variant: 'destructive',
-            title: 'Sessão expirada',
-            description: 'Faça login novamente para continuar.',
-          });
-          setState(prev => ({ ...prev, isSearching: false }));
-          await supabase.from('matchmaking_queue').delete().in('user_id', [user.id, opponent.user_id]);
-          return;
-        }
-        const { data: fnData, error: fnError } = await invokeEdgeFunction<{ id?: string; error?: string }>(
-          refreshed,
-          'create-match',
-          {
-            whitePlayerId: user.id,
-            blackPlayerId: opponent.user_id,
-            timeControl,
-            betAmount: finalBet,
-          }
-        );
-
-        if (fnError || fnData?.error) {
-          toast({
-            variant: 'destructive',
-            title: 'Erro ao criar partida',
-            description: fnData?.error ?? fnError?.message ?? 'Saldo insuficiente ou erro no servidor.',
-          });
-          setState(prev => ({ ...prev, isSearching: false }));
-          await supabase.from('matchmaking_queue').delete().in('user_id', [user.id, opponent.user_id]);
-          return;
-        }
-
-        const gameId = fnData?.id ?? null;
-        await supabase.from('matchmaking_queue').delete().eq('user_id', user.id);
+      if (gameId) {
         setState(prev => ({
           ...prev,
           matchFound: true,
@@ -242,44 +179,62 @@ export const useMatchmaking = () => {
           searchBetAmount: null,
         }));
         toast({ title: 'Partida encontrada!', description: 'O jogo vai começar!' });
-        return;
       }
-
-      const tcMinutes = parseInt(String(timeControl).trim().split('+')[0], 10) || 10;
-      const initialSec = Math.min(86400, Math.max(0, tcMinutes * 60));
-      const nowIso = new Date().toISOString();
-      const { data: game, error: gameError } = await supabase
-        .from('games')
-        .insert({
-          white_player_id: user.id,
-          black_player_id: opponent.user_id,
-          status: 'in_progress',
-          time_control: timeControl,
-          bet_amount: null,
-          started_at: nowIso,
-          white_remaining_time: initialSec,
-          black_remaining_time: initialSec,
-          last_move_at: nowIso,
-        })
-        .select()
-        .single();
-
-      if (gameError) {
-        console.error('Error creating game:', gameError);
-        return;
-      }
-
-      await supabase.from('matchmaking_queue').delete().eq('user_id', user.id);
-      setState(prev => ({
-        ...prev,
-        matchFound: true,
-        gameId: game.id,
-        isSearching: false,
-        searchTimeControl: null,
-        searchBetAmount: null,
-      }));
-      toast({ title: 'Partida encontrada!', description: 'O jogo vai começar!' });
+      return;
     }
+
+    const { data: claimedRows, error: claimError } = await supabase.rpc('matchmaking_claim_opponent', {
+      p_time_control: timeControl,
+      p_bet_amount: betAmount,
+    });
+    if (claimError || !claimedRows?.length) {
+      return;
+    }
+    const opponentId = (claimedRows as { opponent_user_id: string }[])[0]?.opponent_user_id;
+    if (!opponentId) return;
+
+    const { data: { session: refreshed }, error: sessionError } = await supabase.auth.refreshSession();
+    if (sessionError || !refreshed?.access_token) {
+      await supabase.auth.signOut();
+      toast({
+        variant: 'destructive',
+        title: 'Sessão expirada',
+        description: 'Faça login novamente para continuar.',
+      });
+      setState(prev => ({ ...prev, isSearching: false }));
+      return;
+    }
+    const { data: fnData, error: fnError } = await invokeEdgeFunction<{ id?: string; error?: string }>(
+      refreshed,
+      'create-match',
+      {
+        whitePlayerId: user.id,
+        blackPlayerId: opponentId,
+        timeControl,
+        betAmount,
+      }
+    );
+
+    if (fnError || fnData?.error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao criar partida',
+        description: fnData?.error ?? fnError?.message ?? 'Saldo insuficiente ou erro no servidor.',
+      });
+      setState(prev => ({ ...prev, isSearching: false }));
+      return;
+    }
+
+    const gameId = fnData?.id ?? null;
+    setState(prev => ({
+      ...prev,
+      matchFound: true,
+      gameId,
+      isSearching: false,
+      searchTimeControl: null,
+      searchBetAmount: null,
+    }));
+    toast({ title: 'Partida encontrada!', description: 'O jogo vai começar!' });
   };
 
   const leaveQueue = useCallback(async () => {
