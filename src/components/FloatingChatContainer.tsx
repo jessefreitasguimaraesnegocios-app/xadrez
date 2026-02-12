@@ -126,7 +126,7 @@ export function FloatingChatContainer({
         onMouseDown={handlePointerDown}
         onTouchStart={handlePointerDown}
       >
-        <div className="flex-1 min-w-0 flex items-center gap-2 py-2 pl-2 pr-1" data-no-drag>
+        <div className="flex-1 min-w-0 flex items-center gap-2 py-2 pl-2 pr-1">
           {header}
         </div>
         <div className="flex items-center gap-0.5 shrink-0 pr-1" data-no-drag>
