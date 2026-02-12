@@ -2,12 +2,12 @@ import { useState, useRef, useEffect } from "react";
 import { useDirectChat } from "@/hooks/useDirectChat";
 import { useAuth } from "@/hooks/useAuth";
 import { useVoiceCall } from "@/hooks/useVoiceCall";
-import { Card } from "@/components/ui/card";
+import { FloatingChatContainer } from "@/components/FloatingChatContainer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, X, Phone, PhoneOff } from "lucide-react";
+import { Send, Phone, PhoneOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type FriendProfile = {
@@ -58,15 +58,13 @@ const FriendChatPanel = ({ friend, onClose, className }: FriendChatPanelProps) =
   };
 
   return (
-    <Card
-      className={cn(
-        "fixed flex flex-col shadow-xl border-border z-50",
-        "bottom-4 left-4 right-4 h-[56.25vh] max-h-[525px] sm:left-auto sm:right-4 sm:w-80 sm:h-[380px] sm:max-h-none",
-        className
-      )}
-    >
-      <div className="p-2 border-b border-border flex items-center justify-between bg-secondary rounded-t-lg shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
+    <FloatingChatContainer
+      className={className}
+      width={320}
+      height={380}
+      onClose={onClose}
+      header={
+        <>
           <Avatar className="w-8 h-8 shrink-0">
             <AvatarImage src={friend.avatar_url ?? undefined} />
             <AvatarFallback className="bg-primary text-primary-foreground text-xs">
@@ -74,35 +72,27 @@ const FriendChatPanel = ({ friend, onClose, className }: FriendChatPanelProps) =
             </AvatarFallback>
           </Avatar>
           <span className="font-medium text-sm truncate">{displayName}</span>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
           {callStatus === "idle" && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={startCall}
-              title="Ligar (voz)"
-            >
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={startCall} title="Ligar (voz)">
               <Phone className="h-4 w-4" />
             </Button>
           )}
           {(callStatus === "calling" || callStatus === "connecting" || callStatus === "connected") && (
-            <Button
-              variant="destructive"
-              size="icon"
-              className="h-7 w-7"
-              onClick={endCall}
-              title="Encerrar chamada"
-            >
+            <Button variant="destructive" size="icon" className="h-7 w-7" onClick={endCall} title="Encerrar chamada">
               <PhoneOff className="h-4 w-4" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+        </>
+      }
+      bubbleContent={
+        <Avatar className="w-8 h-8">
+          <AvatarImage src={friend.avatar_url ?? undefined} />
+          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+            {displayName.slice(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      }
+    >
       {callError && (
         <p className="px-2 py-1 text-xs text-destructive bg-destructive/10">{callError}</p>
       )}
@@ -133,7 +123,7 @@ const FriendChatPanel = ({ friend, onClose, className }: FriendChatPanelProps) =
       )}
       <audio ref={setRemoteAudioRef} autoPlay playsInline className="hidden" />
 
-      <ScrollArea className="flex-1 p-2 min-h-0">
+      <ScrollArea className="flex-1 min-h-0 p-2">
         <div className="space-y-2 pr-2">
           {loading ? (
             <div className="flex justify-center py-4">
@@ -182,7 +172,7 @@ const FriendChatPanel = ({ friend, onClose, className }: FriendChatPanelProps) =
           <Send className="h-4 w-4" />
         </Button>
       </div>
-    </Card>
+    </FloatingChatContainer>
   );
 };
 

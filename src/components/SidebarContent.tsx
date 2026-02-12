@@ -160,7 +160,7 @@ export function SidebarContent({ activeTab, onTabChange, onItemClick, touchFrien
           return (
             <div key={item.id}>
               {item.id === "wallet" ? (
-                <Link to="/wallet" onClick={() => onItemClick?.()}>
+                touchFriendly ? (
                   <Button
                     variant="ghost"
                     className={cn(
@@ -170,11 +170,31 @@ export function SidebarContent({ activeTab, onTabChange, onItemClick, touchFrien
                         ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                         : "text-sidebar-foreground hover:bg-sidebar-accent"
                     )}
+                    onClick={() => {
+                      onItemClick?.();
+                      navigate("/wallet");
+                    }}
                   >
                     <item.icon className="w-5 h-5 shrink-0" />
                     {item.label}
                   </Button>
-                </Link>
+                ) : (
+                  <Link to="/wallet" onClick={() => onItemClick?.()}>
+                    <Button
+                      variant="ghost"
+                      className={cn(
+                        "w-full justify-start gap-3 font-medium",
+                        btnClass,
+                        isActive
+                          ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent"
+                      )}
+                    >
+                      <item.icon className="w-5 h-5 shrink-0" />
+                      {item.label}
+                    </Button>
+                  </Link>
+                )
               ) : (
                 <Button
                   variant="ghost"

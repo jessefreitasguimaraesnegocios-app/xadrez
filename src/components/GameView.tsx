@@ -403,6 +403,7 @@ const GameView = ({
       {!isFullscreen && (
         <GameChat
           gameId={gameId}
+          opponentUserId={isOnlineGame && onlineOpponent ? onlineOpponent.user_id : null}
           open={showGameChat}
           onOpenChange={setShowGameChat}
         />

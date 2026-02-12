@@ -1,23 +1,35 @@
 import { useState, useRef, useEffect } from 'react';
 import { useGameChat } from '@/hooks/useGameChat';
 import { useAuth } from '@/hooks/useAuth';
-import { Card } from '@/components/ui/card';
+import { useVoiceCall } from '@/hooks/useVoiceCall';
+import { FloatingChatContainer } from '@/components/FloatingChatContainer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, MessageCircle } from 'lucide-react';
+import { Send, MessageCircle, Phone, PhoneOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface GameChatProps {
   gameId: string | null;
+  /** User id do oponente (para ligação de voz). */
+  opponentUserId?: string | null;
   /** Controlado externamente (ex.: botão "Chat" na partida). */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
-const GameChat = ({ gameId, open: controlledOpen, onOpenChange }: GameChatProps) => {
+const GameChat = ({ gameId, opponentUserId, open: controlledOpen, onOpenChange }: GameChatProps) => {
   const { user } = useAuth();
   const { messages, loading, sendMessage } = useGameChat(gameId);
+  const {
+    status: callStatus,
+    error: callError,
+    startCall,
+    acceptCall,
+    rejectCall,
+    endCall,
+    setRemoteAudioRef,
+  } = useVoiceCall(opponentUserId ?? null);
   const [inputValue, setInputValue] = useState('');
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined && onOpenChange !== undefined;
@@ -56,7 +68,7 @@ const GameChat = ({ gameId, open: controlledOpen, onOpenChange }: GameChatProps)
       <Button
         variant="outline"
         size="icon"
-        className="fixed bottom-4 right-4 h-12 w-12 rounded-full shadow-lg"
+        className="fixed bottom-4 right-4 h-12 w-12 rounded-full shadow-lg z-50"
         onClick={() => setIsOpen(true)}
       >
         <MessageCircle className="h-5 w-5" />
@@ -65,25 +77,60 @@ const GameChat = ({ gameId, open: controlledOpen, onOpenChange }: GameChatProps)
   }
 
   return (
-    <Card className="fixed bottom-4 right-4 w-80 h-96 flex flex-col shadow-xl border-border">
-      {/* Header */}
-      <div className="p-3 border-b border-border flex items-center justify-between bg-secondary rounded-t-lg">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="h-4 w-4" />
-          <span className="font-medium text-sm">Chat da Partida</span>
+    <FloatingChatContainer
+      width={320}
+      height={384}
+      onClose={() => setIsOpen(false)}
+      header={
+        <>
+          <MessageCircle className="h-4 w-4 shrink-0" />
+          <span className="font-medium text-sm truncate">Chat da Partida</span>
+          {opponentUserId && callStatus === 'idle' && (
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={startCall} title="Ligar (voz)">
+              <Phone className="h-4 w-4" />
+            </Button>
+          )}
+          {(callStatus === 'calling' || callStatus === 'connecting' || callStatus === 'connected') && (
+            <Button variant="destructive" size="sm" className="h-7 w-7 p-0" onClick={endCall} title="Encerrar chamada">
+              <PhoneOff className="h-4 w-4" />
+            </Button>
+          )}
+        </>
+      }
+      bubbleContent={<MessageCircle className="h-6 w-6" />}
+    >
+      {callError && (
+        <p className="px-3 py-1 text-xs text-destructive bg-destructive/10">{callError}</p>
+      )}
+      {(callStatus === 'calling' || callStatus === 'connecting') && (
+        <p className="px-3 py-1 text-xs text-muted-foreground text-center">
+          {callStatus === 'calling' ? 'Chamando...' : 'Conectando...'}
+        </p>
+      )}
+      {callStatus === 'ringing' && (
+        <div className="p-3 border-b border-border bg-muted/50 flex flex-col items-center gap-2">
+          <p className="text-sm font-medium">Chamada do oponente</p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="default" className="gap-1" onClick={acceptCall}>
+              <Phone className="h-4 w-4" />
+              Atender
+            </Button>
+            <Button size="sm" variant="destructive" className="gap-1" onClick={rejectCall}>
+              <PhoneOff className="h-4 w-4" />
+              Recusar
+            </Button>
+          </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 w-6 p-0"
-          onClick={() => setIsOpen(false)}
-        >
-          ×
-        </Button>
-      </div>
+      )}
+      {callStatus === 'connected' && (
+        <p className="px-3 py-1 text-xs text-primary font-medium text-center bg-primary/10">
+          Em chamada
+        </p>
+      )}
+      <audio ref={setRemoteAudioRef} autoPlay playsInline className="hidden" />
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-3" ref={scrollRef}>
+      <ScrollArea className="flex-1 min-h-0 p-3" ref={scrollRef}>
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
@@ -122,7 +169,7 @@ const GameChat = ({ gameId, open: controlledOpen, onOpenChange }: GameChatProps)
       </ScrollArea>
 
       {/* Input */}
-      <div className="p-3 border-t border-border flex gap-2">
+      <div className="p-3 border-t border-border flex gap-2 shrink-0">
         <Input
           placeholder="Digite uma mensagem..."
           value={inputValue}
@@ -134,7 +181,7 @@ const GameChat = ({ gameId, open: controlledOpen, onOpenChange }: GameChatProps)
           <Send className="h-4 w-4" />
         </Button>
       </div>
-    </Card>
+    </FloatingChatContainer>
   );
 };
 
