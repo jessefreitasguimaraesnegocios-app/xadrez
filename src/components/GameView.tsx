@@ -55,6 +55,7 @@ const GameView = ({
 
   const isOnlineGame = !!gameId && !isBotGame;
   const {
+    game: onlineGame,
     gameState: onlineGameState,
     playerColor: onlinePlayerColor,
     opponent: onlineOpponent,
@@ -64,6 +65,7 @@ const GameView = ({
     makeMove,
     betAmount: onlineBetAmount,
     timeControlSeconds: onlineTimeControlSeconds,
+    lastFinishReward,
   } = useOnlineGame(isOnlineGame ? gameId : null, user?.id ?? null);
 
   const effectiveTimeControl = isOnlineGame ? onlineTimeControlSeconds : timeControl;
@@ -74,6 +76,8 @@ const GameView = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [playerTime, setPlayerTime] = useState(effectiveTimeControl);
   const [opponentTime, setOpponentTime] = useState(effectiveTimeControl);
+  const [serverWhiteDisplaySec, setServerWhiteDisplaySec] = useState<number | null>(null);
+  const [serverBlackDisplaySec, setServerBlackDisplaySec] = useState<number | null>(null);
   const [timerResetKey, setTimerResetKey] = useState(0);
   const [hasClockStarted, setHasClockStarted] = useState(false);
   const [preGameCountdown, setPreGameCountdown] = useState(30);
@@ -238,6 +242,53 @@ const GameView = ({
     if (onlineGameOver) onGameOverChange?.(true);
   }, [onlineGameOver, onGameOverChange]);
 
+  // Server-driven clock: display = server_remaining - (now - last_move_at) for active side
+  useEffect(() => {
+    if (!isOnlineGame || !onlineGame?.last_move_at || onlineGame.status !== "in_progress") {
+      if (isOnlineGame && onlineGame?.status !== "in_progress") {
+        setServerWhiteDisplaySec(onlineGame?.white_remaining_time ?? null);
+        setServerBlackDisplaySec(onlineGame?.black_remaining_time ?? null);
+      }
+      return;
+    }
+    const lastMoveAtUnix = new Date(onlineGame.last_move_at).getTime() / 1000;
+    const whiteSec = onlineGame.white_remaining_time ?? 0;
+    const blackSec = onlineGame.black_remaining_time ?? 0;
+    const isWhiteTurn = onlineGameState?.currentTurn === "white";
+
+    const tick = () => {
+      const nowSec = Date.now() / 1000;
+      const elapsed = Math.max(0, nowSec - lastMoveAtUnix);
+      setServerWhiteDisplaySec(Math.max(0, isWhiteTurn ? whiteSec - elapsed : whiteSec));
+      setServerBlackDisplaySec(Math.max(0, !isWhiteTurn ? blackSec - elapsed : blackSec));
+    };
+    tick();
+    const interval = setInterval(tick, 100);
+    return () => clearInterval(interval);
+  }, [isOnlineGame, onlineGame?.last_move_at, onlineGame?.white_remaining_time, onlineGame?.black_remaining_time, onlineGame?.status, onlineGameState?.currentTurn]);
+
+  // Sync isGameOver when server marks game completed (e.g. time, checkmate, draw)
+  useEffect(() => {
+    if (!isOnlineGame || !onlineGame || onlineGame.status !== "completed") return;
+    const result = onlineGame.result;
+    if (!result) return;
+    setIsGameOver(true);
+    if (result === "draw") {
+      setGameResult("draw");
+    } else {
+      const myColor = onlinePlayerColor ?? "white";
+      setGameResult((result === "white_wins" && myColor === "white") || (result === "black_wins" && myColor === "black") ? "win" : "lose");
+    }
+    onGameOverChange?.(true);
+  }, [isOnlineGame, onlineGame?.status, onlineGame?.result, onlinePlayerColor, onGameOverChange]);
+
+  // Online: clock is "started" once there is at least one move (e.g. we joined as black and white already moved)
+  useEffect(() => {
+    if (!isOnlineGame || !onlineGame) return;
+    const moveCount = Array.isArray(onlineGame.move_history) ? onlineGame.move_history.length : 0;
+    if (moveCount > 0) setHasClockStarted(true);
+  }, [isOnlineGame, onlineGame?.move_history]);
+
   if (isOnlineGame && onlineLoading && !onlineGameState) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -298,6 +349,9 @@ const GameView = ({
               isActive={hasClockStarted && !isGameOver && !isPlayerTurn && !isBotGame}
               isPlayer={false}
               onTimeUp={handleOpponentTimeUp}
+              displayTime={isOnlineGame && serverWhiteDisplaySec != null && serverBlackDisplaySec != null
+                ? (onlinePlayerColor === "white" ? serverBlackDisplaySec : serverWhiteDisplaySec)
+                : undefined}
             />
           </div>
         </Card>
@@ -330,6 +384,18 @@ const GameView = ({
                 {gameResult === "win" && "Você Ganhou"}
                 {gameResult === "lose" && "Você Perdeu"}
                 {gameResult === "draw" && "Empate"}
+                {gameResult === "win" && isOnlineGame && lastFinishReward && (
+                  <div className="mt-3 text-lg font-normal space-y-0.5">
+                    {lastFinishReward.eloChange != null && lastFinishReward.eloChange !== 0 && (
+                      <p className="tabular-nums">
+                        {lastFinishReward.eloChange > 0 ? "+" : ""}{lastFinishReward.eloChange} ELO
+                      </p>
+                    )}
+                    {lastFinishReward.amountWon != null && lastFinishReward.amountWon > 0 && (
+                      <p className="tabular-nums">+R$ {lastFinishReward.amountWon.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -357,6 +423,9 @@ const GameView = ({
                 isActive={hasClockStarted && !isGameOver && isPlayerTurn}
                 isPlayer={true}
                 onTimeUp={handlePlayerTimeUp}
+                displayTime={isOnlineGame && serverWhiteDisplaySec != null && serverBlackDisplaySec != null
+                  ? (onlinePlayerColor === "white" ? serverWhiteDisplaySec : serverBlackDisplaySec)
+                  : undefined}
               />
             ) : (
               <div

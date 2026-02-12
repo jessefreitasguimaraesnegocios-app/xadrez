@@ -15,6 +15,9 @@ export type OnlineGameRow = {
   result: string | null;
   bet_amount?: number | null;
   time_control?: string | null;
+  white_remaining_time?: number | null;
+  black_remaining_time?: number | null;
+  last_move_at?: string | null;
 };
 
 export type OpponentInfo = {
@@ -32,12 +35,16 @@ function getPlayerIds(row: OnlineGameRow | null): { whiteId: string; blackId: st
   return { whiteId, blackId };
 }
 
+export type FinishReward = { eloChange?: number; amountWon?: number };
+
 export function useOnlineGame(gameId: string | null, userId: string | null) {
   const [game, setGame] = useState<OnlineGameRow | null>(null);
   const [opponent, setOpponent] = useState<OpponentInfo | null>(null);
   const [loading, setLoading] = useState(!!gameId);
   const [error, setError] = useState<string | null>(null);
+  const [lastFinishReward, setLastFinishReward] = useState<FinishReward | null>(null);
   const gameRef = useRef<OnlineGameRow | null>(null);
+  const finishedGameIdRef = useRef<string | null>(null);
   gameRef.current = game;
 
   const gameState: GameState | null = game
@@ -71,7 +78,7 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
     }
     const { data: gameRow, error: gameErr } = await supabase
       .from("games")
-      .select("id, white_player_id, black_player_id, move_history, status, result, bet_amount, time_control")
+      .select("id, white_player_id, black_player_id, move_history, status, result, bet_amount, time_control, white_remaining_time, black_remaining_time, last_move_at")
       .eq("id", gameId)
       .single();
 
@@ -95,8 +102,26 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
       result: row.result != null ? String(row.result) : null,
       bet_amount: row.bet_amount != null && typeof row.bet_amount === "number" ? row.bet_amount : null,
       time_control: row.time_control != null ? String(row.time_control).trim() || null : null,
+      white_remaining_time: row.white_remaining_time != null && typeof row.white_remaining_time === "number" ? row.white_remaining_time : null,
+      black_remaining_time: row.black_remaining_time != null && typeof row.black_remaining_time === "number" ? row.black_remaining_time : null,
+      last_move_at: row.last_move_at != null ? String(row.last_move_at) : null,
     };
     setGame(normalized);
+
+    if (normalized.status === "completed" && normalized.result && finishedGameIdRef.current !== gameId) {
+      finishedGameIdRef.current = gameId;
+      const { data: { session }, error: sessionErr } = await supabase.auth.refreshSession();
+      if (session?.access_token) {
+        const { data: finishData, error: finishErr } = await invokeEdgeFunction<{ ok?: boolean; eloChange?: number; amountWon?: number }>(
+          { access_token: session.access_token },
+          "finish-game",
+          { gameId, result: normalized.result }
+        );
+        if (!finishErr && finishData && (finishData.eloChange != null || finishData.amountWon != null)) {
+          setLastFinishReward({ eloChange: finishData.eloChange, amountWon: finishData.amountWon });
+        }
+      }
+    }
 
     if (!silent) {
       const { whiteId: wId, blackId: bId } = getPlayerIds(normalized);
@@ -119,6 +144,11 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
   useEffect(() => {
     fetchGame();
   }, [fetchGame]);
+
+  useEffect(() => {
+    setLastFinishReward(null);
+    finishedGameIdRef.current = null;
+  }, [gameId]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -145,10 +175,10 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
   }, [gameId, fetchGame]);
 
   useEffect(() => {
-    if (!gameId || !game) return;
-    const interval = setInterval(() => fetchGame(true), 2000);
+    if (!gameId || !game || game.status !== "in_progress") return;
+    const interval = setInterval(() => fetchGame(true), 1000);
     return () => clearInterval(interval);
-  }, [gameId, game?.id, fetchGame]);
+  }, [gameId, game?.id, game?.status, fetchGame]);
 
   const makeMove = useCallback(
     async (move: Move) => {
@@ -160,21 +190,12 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
       const serialized = serializeMove(move);
       const newHistory = [...history, serialized];
       const nextState = applyMoveToState(stateToUse, move);
-      const betAmount = typeof current.bet_amount === "number" && current.bet_amount > 0 ? current.bet_amount : 0;
       const isGameOver = nextState.isCheckmate || nextState.isStalemate || nextState.isDraw;
       const result: string | null = nextState.isCheckmate
         ? (nextState.currentTurn === "white" ? "black_wins" : "white_wins")
         : nextState.isStalemate || nextState.isDraw
           ? "draw"
           : null;
-
-      const updates: { move_history: SerializedMove[]; status?: string; result?: string } = {
-        move_history: newHistory,
-      };
-      if (isGameOver && betAmount === 0) {
-        updates.status = "completed";
-        updates.result = result ?? "draw";
-      }
 
       setGame((prev) =>
         prev
@@ -186,30 +207,72 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
           : prev
       );
 
-      const { error: updateErr } = await supabase
-        .from("games")
-        .update(updates)
-        .eq("id", gameId);
-
-      if (updateErr) {
-        setError(updateErr.message);
+      const { data: { session }, error: sessionErr } = await supabase.auth.refreshSession();
+      if (sessionErr || !session?.access_token) {
+        setError(sessionErr?.message ?? "Sessão inválida.");
         setGame((prev) => (prev ? { ...prev, move_history: history } : prev));
         return;
       }
 
-      if (isGameOver && result) {
-        const { data: { session }, error: sessionErr } = await supabase.auth.refreshSession();
-        if (session?.access_token) {
-          const { error: finishErr } = await invokeEdgeFunction(
-            { access_token: session.access_token },
+      type MakeMoveResponse = {
+        ok?: boolean;
+        white_remaining_time?: number;
+        black_remaining_time?: number;
+        last_move_at?: string;
+        status?: string;
+        result?: string | null;
+      };
+      const { data: moveData, error: moveErr } = await invokeEdgeFunction<MakeMoveResponse>(
+        { access_token: session.access_token },
+        "make-move",
+        {
+          gameId,
+          move: serialized,
+          ...(isGameOver && result ? { result } : {}),
+        }
+      );
+
+      if (moveErr) {
+        setError(moveErr.message);
+        setGame((prev) => (prev ? { ...prev, move_history: history } : prev));
+        return;
+      }
+
+      if (moveData) {
+        setGame((prev) =>
+          prev
+            ? {
+                ...prev,
+                move_history: newHistory,
+                white_remaining_time: moveData.white_remaining_time ?? prev.white_remaining_time,
+                black_remaining_time: moveData.black_remaining_time ?? prev.black_remaining_time,
+                last_move_at: moveData.last_move_at ?? prev.last_move_at,
+                status: moveData.status ?? prev.status,
+                result: moveData.result ?? prev.result,
+              }
+            : prev
+        );
+      }
+
+      if (moveData?.status === "completed" && moveData?.result) {
+        finishedGameIdRef.current = gameId;
+        const { data: { session: s2 }, error: sessionErr2 } = await supabase.auth.refreshSession();
+        if (s2?.access_token) {
+          const { data: finishData, error: finishErr } = await invokeEdgeFunction<{ ok?: boolean; eloChange?: number; amountWon?: number }>(
+            { access_token: s2.access_token },
             "finish-game",
-            { gameId, result }
+            { gameId, result: moveData.result }
           );
           if (finishErr) {
             setError(finishErr.message);
+          } else if (finishData && (finishData.eloChange != null || finishData.amountWon != null)) {
+            setLastFinishReward({
+              eloChange: finishData.eloChange,
+              amountWon: finishData.amountWon,
+            });
           }
-        } else if (sessionErr) {
-          setError(sessionErr.message ?? "Sessão inválida para encerrar partida.");
+        } else if (sessionErr2) {
+          setError(sessionErr2.message ?? "Sessão inválida para encerrar partida.");
         }
       }
     },
@@ -217,6 +280,7 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
   );
 
   return {
+    game,
     gameState,
     playerColor,
     opponent,
@@ -227,5 +291,6 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
     refetch: fetchGame,
     betAmount: typeof game?.bet_amount === "number" && game.bet_amount > 0 ? game.bet_amount : null,
     timeControlSeconds: timeControlToSeconds(game?.time_control ?? null),
+    lastFinishReward,
   };
 }

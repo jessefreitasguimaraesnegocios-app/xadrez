@@ -221,6 +221,9 @@ export const useMatchmaking = () => {
         return;
       }
 
+      const tcMinutes = parseInt(String(timeControl).trim().split('+')[0], 10) || 10;
+      const initialSec = Math.min(86400, Math.max(0, tcMinutes * 60));
+      const nowIso = new Date().toISOString();
       const { data: game, error: gameError } = await supabase
         .from('games')
         .insert({
@@ -229,7 +232,10 @@ export const useMatchmaking = () => {
           status: 'in_progress',
           time_control: timeControl,
           bet_amount: null,
-          started_at: new Date().toISOString(),
+          started_at: nowIso,
+          white_remaining_time: initialSec,
+          black_remaining_time: initialSec,
+          last_move_at: nowIso,
         })
         .select()
         .single();

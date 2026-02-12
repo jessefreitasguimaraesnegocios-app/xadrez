@@ -20,6 +20,7 @@ Deno.serve(async (req: Request) => {
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });
     }
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -27,7 +28,7 @@ Deno.serve(async (req: Request) => {
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser(token);
     if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized", detail: userError?.message ?? "Invalid token" }), {
         status: 401,
@@ -78,6 +79,8 @@ Deno.serve(async (req: Request) => {
     const bet = Number(game.bet_amount ?? 0);
     const whiteId = game.white_player_id!;
     const blackId = game.black_player_id!;
+    let eloChangeUser: number | null = null;
+    let amountWonUser: number | null = null;
 
     if (bet > 0) {
       const { data: wW } = await supabase.from("wallets").select("balance_available, balance_locked").eq("user_id", whiteId).single();
@@ -89,6 +92,8 @@ Deno.serve(async (req: Request) => {
 
       const pot = bet * 2;
       const winnerPayout = Math.round((pot * (1 - HOUSE_CUT_PCT)) * 100) / 100;
+      if (result === "white_wins" && userId === whiteId) amountWonUser = winnerPayout;
+      else if (result === "black_wins" && userId === blackId) amountWonUser = winnerPayout;
 
       if (result === "draw") {
         await supabase.from("wallets").update({
@@ -164,6 +169,8 @@ Deno.serve(async (req: Request) => {
       const scoreB = result === "black_wins" ? 1 : result === "draw" ? 0.5 : 0;
       const newEloW = Math.max(100, Math.round(eloW + K * (scoreW - expectedW)));
       const newEloB = Math.max(100, Math.round(eloB + K * (scoreB - (1 - expectedW))));
+      if (userId === whiteId) eloChangeUser = newEloW - eloW;
+      else if (userId === blackId) eloChangeUser = newEloB - eloB;
       await supabase.from("profiles").update({
         wins: winsWhite,
         losses: lossesWhite,
@@ -197,7 +204,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, result }), {
+    const bodyRes: { ok: boolean; result: string; eloChange?: number; amountWon?: number } = { ok: true, result };
+    if (eloChangeUser != null) bodyRes.eloChange = eloChangeUser;
+    if (amountWonUser != null) bodyRes.amountWon = amountWonUser;
+    return new Response(JSON.stringify(bodyRes), {
       status: 200,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
