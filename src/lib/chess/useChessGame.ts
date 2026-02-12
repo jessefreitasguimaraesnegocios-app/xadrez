@@ -45,7 +45,8 @@ export interface UseChessGameOptions {
   /** When playing vs bot: which color the human plays. Bot plays the opposite. Default white. */
   playerColor?: PieceColor;
   onTurnChange?: (turn: PieceColor) => void;
-  onGameOver?: () => void;
+  /** Chamado quando a partida termina. result: quem venceu ou 'draw'. */
+  onGameOver?: (result?: 'white_wins' | 'black_wins' | 'draw') => void;
   /** Called once when the first move is played (white). */
   onFirstMove?: () => void;
   /** Called after each move; wasCapture true if a piece was taken. */
@@ -234,10 +235,13 @@ export const useChessGame = (options?: UseChessGameOptions) => {
   }, [gameState.currentTurn, onTurnChange]);
 
   useEffect(() => {
-    if (gameState.isCheckmate || gameState.isStalemate || gameState.isDraw) {
-      onGameOver?.();
+    if (gameState.isCheckmate) {
+      const result: 'white_wins' | 'black_wins' = gameState.currentTurn === 'white' ? 'black_wins' : 'white_wins';
+      onGameOver?.(result);
+    } else if (gameState.isStalemate || gameState.isDraw) {
+      onGameOver?.('draw');
     }
-  }, [gameState.isCheckmate, gameState.isStalemate, gameState.isDraw, onGameOver]);
+  }, [gameState.isCheckmate, gameState.isStalemate, gameState.isDraw, gameState.currentTurn, onGameOver]);
 
   useEffect(() => {
     if (gameState.moveHistory.length === 1 && !onFirstMoveCalled.current) {

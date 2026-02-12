@@ -16,7 +16,7 @@ interface ChessBoardProps {
   /** When playing vs bot: which color the human plays. Board is flipped when black. */
   botPlayerColor?: "white" | "black";
   onTurnChange?: (turn: "white" | "black") => void;
-  onGameOver?: () => void;
+  onGameOver?: (result?: 'white_wins' | 'black_wins' | 'draw') => void;
   onNewGame?: () => void;
   /** Called once when the first move (white) is played. */
   onFirstMove?: () => void;

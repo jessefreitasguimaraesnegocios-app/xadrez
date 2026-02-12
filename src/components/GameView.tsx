@@ -6,7 +6,7 @@ import GameTimer from "./GameTimer";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Flag, RotateCcw, Bot, Maximize2, Minimize2, MessageCircle, Trophy } from "lucide-react";
+import { Flag, RotateCcw, Bot, Maximize2, Minimize2, MessageCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -304,26 +304,24 @@ const GameView = ({
 
         {/* Chess Board */}
         <div className={cn("relative flex justify-center py-2 lg:py-4 w-full min-w-0", isFullscreen && "flex-1 min-h-0 items-center justify-center")}>
-          <div className={cn("transition-[filter] duration-300", isGameOver && "blur-[3px] pointer-events-none select-none")}>
-            <ChessBoard
-              size={isFullscreen ? "xl" : isMobile ? "xl" : "lg"}
-              fullscreen={isFullscreen}
-              botDifficulty={botDifficulty}
-              botPlayerColor={isBotGame ? botPlayerColor : isOnlineGame ? (onlinePlayerColor ?? undefined) : undefined}
-              onTurnChange={handleTurnChange}
-              onGameOver={handleBoardGameOver}
-              onNewGame={onNewGameRequested ?? handleNewGame}
-              onFirstMove={handleFirstMove}
-              disabled={isGameOver || (isOnlineGame ? !isMyTurn || !!onlineGameState?.isCheckmate || !!onlineGameState?.isStalemate : false)}
-              syncState={isOnlineGame ? onlineGameState ?? null : undefined}
-              onMove={isOnlineGame ? makeMove : undefined}
-            />
-          </div>
+          <ChessBoard
+            size={isFullscreen ? "xl" : isMobile ? "xl" : "lg"}
+            fullscreen={isFullscreen}
+            botDifficulty={botDifficulty}
+            botPlayerColor={isBotGame ? botPlayerColor : isOnlineGame ? (onlinePlayerColor ?? undefined) : undefined}
+            onTurnChange={handleTurnChange}
+            onGameOver={handleBoardGameOver}
+            onNewGame={onNewGameRequested ?? handleNewGame}
+            onFirstMove={handleFirstMove}
+            disabled={isGameOver || (isOnlineGame ? !isMyTurn || !!onlineGameState?.isCheckmate || !!onlineGameState?.isStalemate : false)}
+            syncState={isOnlineGame ? onlineGameState ?? null : undefined}
+            onMove={isOnlineGame ? makeMove : undefined}
+          />
           {isGameOver && gameResult && (
-            <div className="absolute inset-0 flex items-center justify-center z-10">
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
               <div
                 className={cn(
-                  "px-8 py-6 rounded-2xl shadow-2xl text-center font-display font-bold text-2xl sm:text-3xl border-2 flex flex-col items-center gap-3",
+                  "px-8 py-6 rounded-2xl shadow-2xl text-center font-display font-bold text-2xl sm:text-3xl border-2",
                   gameResult === "win" && "bg-primary text-primary-foreground border-primary",
                   gameResult === "lose" && "bg-destructive text-destructive-foreground border-destructive",
                   gameResult === "draw" && "bg-muted text-muted-foreground border-border"
@@ -332,32 +330,6 @@ const GameView = ({
                 {gameResult === "win" && "Você Ganhou"}
                 {gameResult === "lose" && "Você Perdeu"}
                 {gameResult === "draw" && "Empate"}
-                {gameResult === "win" && onlineBetAmount != null && onlineBetAmount > 0 && (
-                  <div className="flex flex-col items-center gap-1 mt-1">
-                    <Trophy className="w-10 h-10 text-amber-400 drop-shadow-md" strokeWidth={2} />
-                    <span className="text-xl sm:text-2xl font-bold text-amber-400">
-                      R$ {(2 * onlineBetAmount).toFixed(2)}
-                    </span>
-                  </div>
-                )}
-                <div className="flex flex-wrap gap-2 justify-center mt-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="font-medium"
-                    onClick={handleNewGame}
-                  >
-                    Nova partida
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="font-medium border-2 bg-background/90 text-foreground"
-                    onClick={handleNewGame}
-                  >
-                    Revanche
-                  </Button>
-                </div>
               </div>
             </div>
           )}
