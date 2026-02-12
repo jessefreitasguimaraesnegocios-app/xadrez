@@ -58,10 +58,10 @@ export function FloatingChatContainer({
   );
 
   useEffect(() => {
-    if (!dragStart.current) return;
     const onMove = (e: MouseEvent | TouchEvent) => {
       if (!dragStart.current) return;
       didDragRef.current = true;
+      if (e.cancelable) e.preventDefault();
       const clientX = "touches" in e ? (e as TouchEvent).touches[0].clientX : (e as MouseEvent).clientX;
       const clientY = "touches" in e ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY;
       setPosition({
@@ -74,7 +74,7 @@ export function FloatingChatContainer({
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-    window.addEventListener("touchmove", onMove, { passive: true });
+    window.addEventListener("touchmove", onMove, { passive: false });
     window.addEventListener("touchend", onUp);
     return () => {
       window.removeEventListener("mousemove", onMove);
@@ -123,6 +123,7 @@ export function FloatingChatContainer({
     >
       <div
         className="flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing select-none touch-none bg-secondary border-b border-border"
+        style={{ touchAction: "none" }}
         onMouseDown={handlePointerDown}
         onTouchStart={handlePointerDown}
       >
