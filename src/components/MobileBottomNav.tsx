@@ -34,7 +34,7 @@ export function MobileBottomNav({ activeTab, onTabChange, onMenuClick, className
       {navItems.map((item) => {
         const isMenu = item.id === "menu";
         const isActive = !isMenu && activeTab === item.id;
-        const showFriendsBadge = item.id === "friends" && unreadCount > 0;
+        const showFriendsBadge = item.id === "friends" && Number(unreadCount) > 0;
         const showPlayBadge = item.id === "play" && gameInvitesCount > 0;
         const showBadge = showFriendsBadge || showPlayBadge;
         const badgeCount = showFriendsBadge ? unreadCount : showPlayBadge ? gameInvitesCount : 0;

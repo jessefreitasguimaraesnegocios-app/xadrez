@@ -214,7 +214,7 @@ export function SidebarContent({ activeTab, onTabChange, onItemClick, touchFrien
                       {gameInvitesCount > 99 ? "99+" : gameInvitesCount}
                     </span>
                   )}
-                  {item.id === "friends" && unreadDirectCount > 0 && (
+                  {item.id === "friends" && Number(unreadDirectCount) > 0 && (
                     <span className="notification-badge min-w-[18px] h-[18px] px-1.5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-semibold">
                       {unreadDirectCount > 99 ? "99+" : unreadDirectCount}
                     </span>

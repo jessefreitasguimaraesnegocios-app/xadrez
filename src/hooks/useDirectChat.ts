@@ -88,8 +88,39 @@ export function useDirectChat(friendUserId: string | null) {
       )
       .subscribe();
 
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && friendUserId && myId) {
+        const fetchMessages = async () => {
+          const [r1, r2] = await Promise.all([
+            supabase.from("direct_messages").select("id, sender_id, receiver_id, content, created_at").eq("sender_id", myId).eq("receiver_id", friendUserId).order("created_at", { ascending: true }),
+            supabase.from("direct_messages").select("id, sender_id, receiver_id, content, created_at").eq("sender_id", friendUserId).eq("receiver_id", myId).order("created_at", { ascending: true }),
+          ]);
+          const list = [...(r1.data ?? []), ...(r2.data ?? [])].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+          setMessages(list as DirectMessage[]);
+        };
+        fetchMessages();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    const poll = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        const fetchMessages = async () => {
+          const [r1, r2] = await Promise.all([
+            supabase.from("direct_messages").select("id, sender_id, receiver_id, content, created_at").eq("sender_id", myId!).eq("receiver_id", friendUserId!).order("created_at", { ascending: true }),
+            supabase.from("direct_messages").select("id, sender_id, receiver_id, content, created_at").eq("sender_id", friendUserId!).eq("receiver_id", myId!).order("created_at", { ascending: true }),
+          ]);
+          const list = [...(r1.data ?? []), ...(r2.data ?? [])].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+          setMessages(list as DirectMessage[]);
+        };
+        fetchMessages();
+      }
+    }, 5000);
+
     return () => {
       supabase.removeChannel(channel);
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(poll);
     };
   }, [friendUserId, myId]);
 
@@ -97,13 +128,18 @@ export function useDirectChat(friendUserId: string | null) {
     async (content: string) => {
       if (!friendUserId || !myId || !content.trim()) return { error: new Error("Invalid input") };
 
-      const { error } = await supabase.from("direct_messages").insert({
-        sender_id: myId,
-        receiver_id: friendUserId,
-        content: content.trim(),
-      });
+      const { data, error } = await supabase
+        .from("direct_messages")
+        .insert({
+          sender_id: myId,
+          receiver_id: friendUserId,
+          content: content.trim(),
+        })
+        .select("id, sender_id, receiver_id, content, created_at")
+        .single();
 
       if (error) return { error };
+      if (data) setMessages((prev) => [...prev, data as DirectMessage]);
       return { error: null };
     },
     [friendUserId, myId]

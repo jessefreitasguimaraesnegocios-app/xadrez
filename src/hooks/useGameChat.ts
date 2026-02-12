@@ -45,9 +45,26 @@ export const useGameChat = (gameId: string | null) => {
     fetchMessages();
   }, [gameId, user]);
 
-  // Subscribe to new messages
+  // Subscribe to new messages + visibility refetch + short poll
   useEffect(() => {
     if (!gameId || !user) return;
+
+    const fetchMessages = async () => {
+      const { data, error } = await supabase
+        .from('game_messages')
+        .select(`
+          *,
+          profiles:sender_id (username)
+        `)
+        .eq('game_id', gameId)
+        .order('created_at', { ascending: true });
+      if (!error && data) {
+        setMessages(data.map(msg => ({
+          ...msg,
+          sender_username: (msg.profiles as unknown as { username: string })?.username
+        })));
+      }
+    };
 
     const channel = supabase
       .channel(`game-chat-${gameId}`)
@@ -60,25 +77,35 @@ export const useGameChat = (gameId: string | null) => {
           filter: `game_id=eq.${gameId}`,
         },
         async (payload) => {
-          // Fetch sender username
           const { data: profile } = await supabase
             .from('profiles')
             .select('username')
             .eq('user_id', payload.new.sender_id)
             .single();
-
           const newMessage: Message = {
             ...(payload.new as Message),
             sender_username: profile?.username,
           };
-
           setMessages(prev => [...prev, newMessage]);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') fetchMessages();
+      });
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchMessages();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    const poll = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchMessages();
+    }, 5000);
 
     return () => {
       supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(poll);
     };
   }, [gameId, user]);
 

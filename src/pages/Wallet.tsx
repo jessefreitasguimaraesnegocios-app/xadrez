@@ -2,10 +2,14 @@ import { useState, useRef, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useWallet } from "@/hooks/useWallet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { invokeEdgeFunction } from "@/lib/edgeFunctionAuth";
 import Sidebar from "@/components/Sidebar";
+import { MobileHeader } from "@/components/MobileHeader";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { SidebarContent } from "@/components/SidebarContent";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +25,7 @@ import { Wallet as WalletIcon, ArrowDownCircle, ArrowUpCircle, Copy, Loader2, XC
 
 const Wallet = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { user, profile, updateProfile, loading: authLoading } = useAuth();
   const {
     balance_available,
@@ -43,6 +48,7 @@ const Wallet = () => {
   const [depositLoading, setDepositLoading] = useState(false);
   const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [depositResult, setDepositResult] = useState<{
     qrCodeBase64: string;
     payload: string;
@@ -286,10 +292,8 @@ const Wallet = () => {
   const statusLabel = (s: string) =>
     ({ pending_review: "Aguardando confirmação", approved: "Aprovado", processing: "Enviando PIX" })[s] ?? s;
 
-  return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar activeTab="wallet" onTabChange={() => {}} />
-      <main className="flex-1 p-6 overflow-auto">
+  const walletMain = (
+      <main className={isMobile ? "flex-1 p-4 sm:p-6 overflow-auto" : "flex-1 p-6 overflow-auto"}>
         <div className="max-w-2xl mx-auto space-y-6">
           <div>
             <h1 className="font-display font-bold text-3xl mb-2">Minha Carteira</h1>
@@ -450,6 +454,25 @@ const Wallet = () => {
           )}
         </div>
       </main>
+    );
+
+  return (
+    <div className={isMobile ? "flex flex-col min-h-screen bg-background" : "flex min-h-screen bg-background"}>
+      {!isMobile && <Sidebar activeTab="wallet" onTabChange={() => {}} />}
+      {isMobile && <MobileHeader onMenuClick={() => setMobileMenuOpen(true)} />}
+      {walletMain}
+      {isMobile && (
+        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <SheetContent side="left" className="p-0 w-[280px] max-w-[85vw] border-sidebar-border">
+            <SidebarContent
+              activeTab="wallet"
+              onTabChange={() => {}}
+              onItemClick={() => setMobileMenuOpen(false)}
+              touchFriendly
+            />
+          </SheetContent>
+        </Sheet>
+      )}
 
       <Dialog open={depositOpen} onOpenChange={setDepositOpen}>
         <DialogContent className="sm:max-w-md">

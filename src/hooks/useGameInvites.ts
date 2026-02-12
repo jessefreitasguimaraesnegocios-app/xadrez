@@ -79,15 +79,29 @@ export function useGameInvites() {
     fetchReceivedPending(user.id).finally(() => setLoading(false));
 
     const channel = supabase
-      .channel("game-invites-changes")
+      .channel(`game-invites-${user.id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "game_invites", filter: `to_user_id=eq.${user.id}` },
         () => fetchReceivedPending(user.id)
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") fetchReceivedPending(user.id);
+      });
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchReceivedPending(user.id);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    const poll = setInterval(() => {
+      if (document.visibilityState === "visible") fetchReceivedPending(user.id);
+    }, 15000);
+
     return () => {
       supabase.removeChannel(channel);
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(poll);
     };
   }, [user?.id, fetchReceivedPending]);
 

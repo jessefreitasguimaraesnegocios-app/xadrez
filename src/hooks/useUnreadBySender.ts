@@ -40,15 +40,29 @@ export function useUnreadBySender(): Record<string, number> {
   useEffect(() => {
     if (!myId) return;
     const channel = supabase
-      .channel("unread-by-sender")
+      .channel(`unread-by-sender-${myId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "direct_messages" },
         () => fetchCounts()
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") fetchCounts();
+      });
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchCounts();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    const poll = setInterval(() => {
+      if (document.visibilityState === "visible") fetchCounts();
+    }, 15000);
+
     return () => {
       supabase.removeChannel(channel);
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(poll);
     };
   }, [myId, fetchCounts]);
 

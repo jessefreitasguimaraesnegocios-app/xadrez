@@ -127,13 +127,20 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` },
-        () => {
-          fetchGame(true);
-        }
+        () => fetchGame(true)
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") fetchGame(true);
+      });
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchGame(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     return () => {
       supabase.removeChannel(channel);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [gameId, fetchGame]);
 

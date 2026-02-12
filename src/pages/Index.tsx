@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import type { BotDifficulty } from "@/lib/chess";
 import { getNextRandomColor } from "@/lib/randomColor";
 import { supabase } from "@/integrations/supabase/client";
+import { FRIENDS_TAB_OPENED_EVENT } from "@/hooks/useUnreadDirectCount";
 
 const Index = () => {
   const { profile, user } = useAuth();
@@ -37,6 +38,12 @@ const Index = () => {
       setActiveTab(tab);
     }
   }, [location.state]);
+
+  useEffect(() => {
+    if (activeTab === "friends") {
+      window.dispatchEvent(new CustomEvent(FRIENDS_TAB_OPENED_EVENT));
+    }
+  }, [activeTab]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [gameViewGameOver, setGameViewGameOver] = useState(false);

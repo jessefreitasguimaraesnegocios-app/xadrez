@@ -220,15 +220,29 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
   useEffect(() => {
     if (!myUserId) return;
     const channel = supabase
-      .channel("friendships-changes")
+      .channel(`friendships-${myUserId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "friendships" },
         () => loadFriendsAndPending()
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") loadFriendsAndPending();
+      });
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadFriendsAndPending();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    const poll = setInterval(() => {
+      if (document.visibilityState === "visible") loadFriendsAndPending();
+    }, 15000);
+
     return () => {
       supabase.removeChannel(channel);
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(poll);
     };
   }, [myUserId, loadFriendsAndPending]);
 

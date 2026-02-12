@@ -69,8 +69,9 @@ const Admin = () => {
   const [activeTab, setActiveTab] = useState("report");
   const [report, setReport] = useState<ReportData | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
-  const [reportFrom, setReportFrom] = useState("");
-  const [reportTo, setReportTo] = useState("");
+  const today = () => new Date().toISOString().slice(0, 10);
+  const [reportFrom, setReportFrom] = useState(() => today());
+  const [reportTo, setReportTo] = useState(() => today());
   const [templates, setTemplates] = useState<TournamentTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [generateDays, setGenerateDays] = useState(7);
