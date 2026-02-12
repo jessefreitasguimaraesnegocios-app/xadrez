@@ -6,7 +6,7 @@ import GameTimer from "./GameTimer";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Flag, RotateCcw, Bot, Maximize2, Minimize2 } from "lucide-react";
+import { Flag, RotateCcw, Bot, Maximize2, Minimize2, MessageCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -78,6 +78,7 @@ const GameView = ({
   const [hasClockStarted, setHasClockStarted] = useState(false);
   const [preGameCountdown, setPreGameCountdown] = useState(30);
   const preGameTimeUpFired = useRef(false);
+  const [showGameChat, setShowGameChat] = useState(false);
 
   const opponentLabel =
     isBotGame && botDifficulty
@@ -346,6 +347,18 @@ const GameView = ({
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </Button>
+          {isOnlineGame && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 shrink-0"
+              onClick={() => setShowGameChat(true)}
+              title="Chat da partida"
+            >
+              <MessageCircle className="w-4 h-4" />
+              Chat
+            </Button>
+          )}
           <Button
             variant="secondary"
             className="flex-1 gap-2 min-w-[140px]"
@@ -386,8 +399,14 @@ const GameView = ({
         </div>
       )}
 
-      {/* Game Chat - oculto em tela cheia */}
-      {!isFullscreen && <GameChat gameId={gameId} />}
+      {/* Game Chat - oculto em tela cheia; botão "Chat" nos controles abre o painel */}
+      {!isFullscreen && (
+        <GameChat
+          gameId={gameId}
+          open={showGameChat}
+          onOpenChange={setShowGameChat}
+        />
+      )}
     </div>
   );
 };

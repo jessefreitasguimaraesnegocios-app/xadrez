@@ -10,13 +10,19 @@ import { cn } from '@/lib/utils';
 
 interface GameChatProps {
   gameId: string | null;
+  /** Controlado externamente (ex.: botão "Chat" na partida). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-const GameChat = ({ gameId }: GameChatProps) => {
+const GameChat = ({ gameId, open: controlledOpen, onOpenChange }: GameChatProps) => {
   const { user } = useAuth();
   const { messages, loading, sendMessage } = useGameChat(gameId);
   const [inputValue, setInputValue] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined && onOpenChange !== undefined;
+  const isOpen = isControlled ? controlledOpen : internalOpen;
+  const setIsOpen = isControlled ? (v: boolean) => onOpenChange?.(v) : setInternalOpen;
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new messages
@@ -45,6 +51,7 @@ const GameChat = ({ gameId }: GameChatProps) => {
   if (!gameId) return null;
 
   if (!isOpen) {
+    if (isControlled) return null;
     return (
       <Button
         variant="outline"

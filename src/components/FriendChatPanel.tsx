@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { useDirectChat } from "@/hooks/useDirectChat";
 import { useAuth } from "@/hooks/useAuth";
+import { useVoiceCall } from "@/hooks/useVoiceCall";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, X } from "lucide-react";
+import { Send, X, Phone, PhoneOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type FriendProfile = {
@@ -25,6 +26,15 @@ interface FriendChatPanelProps {
 const FriendChatPanel = ({ friend, onClose, className }: FriendChatPanelProps) => {
   const { user } = useAuth();
   const { messages, loading, sendMessage } = useDirectChat(friend.user_id);
+  const {
+    status: callStatus,
+    error: callError,
+    startCall,
+    acceptCall,
+    rejectCall,
+    endCall,
+    setRemoteAudioRef,
+  } = useVoiceCall(friend.user_id);
   const [inputValue, setInputValue] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -50,7 +60,8 @@ const FriendChatPanel = ({ friend, onClose, className }: FriendChatPanelProps) =
   return (
     <Card
       className={cn(
-        "fixed bottom-4 right-4 w-80 h-[380px] flex flex-col shadow-xl border-border z-50",
+        "fixed flex flex-col shadow-xl border-border z-50",
+        "bottom-4 left-4 right-4 h-[56.25vh] max-h-[525px] sm:left-auto sm:right-4 sm:w-80 sm:h-[380px] sm:max-h-none",
         className
       )}
     >
@@ -64,10 +75,63 @@ const FriendChatPanel = ({ friend, onClose, className }: FriendChatPanelProps) =
           </Avatar>
           <span className="font-medium text-sm truncate">{displayName}</span>
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1 shrink-0">
+          {callStatus === "idle" && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={startCall}
+              title="Ligar (voz)"
+            >
+              <Phone className="h-4 w-4" />
+            </Button>
+          )}
+          {(callStatus === "calling" || callStatus === "connecting" || callStatus === "connected") && (
+            <Button
+              variant="destructive"
+              size="icon"
+              className="h-7 w-7"
+              onClick={endCall}
+              title="Encerrar chamada"
+            >
+              <PhoneOff className="h-4 w-4" />
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
+      {callError && (
+        <p className="px-2 py-1 text-xs text-destructive bg-destructive/10">{callError}</p>
+      )}
+      {(callStatus === "calling" || callStatus === "connecting") && (
+        <p className="px-2 py-1 text-xs text-muted-foreground text-center">
+          {callStatus === "calling" ? "Chamando..." : "Conectando..."}
+        </p>
+      )}
+      {callStatus === "ringing" && (
+        <div className="p-3 border-b border-border bg-muted/50 flex flex-col items-center gap-2">
+          <p className="text-sm font-medium">Chamada de {displayName}</p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="default" className="gap-1" onClick={acceptCall}>
+              <Phone className="h-4 w-4" />
+              Atender
+            </Button>
+            <Button size="sm" variant="destructive" className="gap-1" onClick={rejectCall}>
+              <PhoneOff className="h-4 w-4" />
+              Recusar
+            </Button>
+          </div>
+        </div>
+      )}
+      {callStatus === "connected" && (
+        <p className="px-2 py-1 text-xs text-primary font-medium text-center bg-primary/10">
+          Em chamada
+        </p>
+      )}
+      <audio ref={setRemoteAudioRef} autoPlay playsInline className="hidden" />
 
       <ScrollArea className="flex-1 p-2 min-h-0">
         <div className="space-y-2 pr-2">
