@@ -11,7 +11,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { UserPlus, Swords, MessageCircle, Search, Check, X, Loader2, Zap, Clock, Timer, Infinity } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { UserPlus, Swords, MessageCircle, Search, Check, X, Loader2, Zap, Clock, Timer, Infinity, UserMinus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useWallet } from "@/hooks/useWallet";
@@ -319,6 +329,22 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
       return;
     }
     toast({ title: "Solicitação recusada." });
+    await loadFriendsAndPending();
+  };
+
+  const [removeFriendTarget, setRemoveFriendTarget] = useState<(ProfileRow & { friendshipId: string }) | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const handleRemoveFriend = async (friendshipId: string) => {
+    setRemovingId(friendshipId);
+    const { error } = await supabase.from("friendships").delete().eq("id", friendshipId);
+    setRemovingId(null);
+    setRemoveFriendTarget(null);
+    if (error) {
+      toast({ variant: "destructive", title: "Erro ao remover amigo", description: error.message });
+      return;
+    }
+    toast({ title: "Amigo removido.", description: "Ele foi removido da sua lista de amigos." });
     await loadFriendsAndPending();
   };
 
@@ -681,6 +707,15 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
                     >
                       <MessageCircle className="w-4 h-4" />
                     </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setRemoveFriendTarget(friend)}
+                      title="Remover amigo"
+                    >
+                      <UserMinus className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               ))
@@ -699,6 +734,34 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
           onClose={() => setChatFriend(null)}
         />
       )}
+
+      <AlertDialog open={!!removeFriendTarget} onOpenChange={(open) => { if (!open) setRemoveFriendTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover amigo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja remover{" "}
+              <span className="font-medium text-foreground">
+                {removeFriendTarget ? displayName(removeFriendTarget) : ""}
+              </span>{" "}
+              da sua lista de amigos? Essa ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (!removeFriendTarget) return;
+                handleRemoveFriend(removeFriendTarget.friendshipId);
+              }}
+              disabled={!!removingId}
+            >
+              {removingId ? <Loader2 className="w-4 h-4 animate-spin" /> : "Remover"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
