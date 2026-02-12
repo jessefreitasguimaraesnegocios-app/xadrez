@@ -63,14 +63,17 @@ const GameView = ({
     isMyTurn,
     makeMove,
     betAmount: onlineBetAmount,
+    timeControlSeconds: onlineTimeControlSeconds,
   } = useOnlineGame(isOnlineGame ? gameId : null, user?.id ?? null);
+
+  const effectiveTimeControl = isOnlineGame ? onlineTimeControlSeconds : timeControl;
 
   const [showBetting, setShowBetting] = useState(withBetting && !isBotGame);
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [isGameOver, setIsGameOver] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [playerTime, setPlayerTime] = useState(timeControl);
-  const [opponentTime, setOpponentTime] = useState(timeControl);
+  const [playerTime, setPlayerTime] = useState(effectiveTimeControl);
+  const [opponentTime, setOpponentTime] = useState(effectiveTimeControl);
   const [timerResetKey, setTimerResetKey] = useState(0);
   const [hasClockStarted, setHasClockStarted] = useState(false);
   const [preGameCountdown, setPreGameCountdown] = useState(30);
@@ -139,19 +142,26 @@ const GameView = ({
     preGameTimeUpFired.current = false;
     setIsGameOver(false);
     setIsPlayerTurn(true);
-    setPlayerTime(timeControl);
-    setOpponentTime(timeControl);
+    setPlayerTime(effectiveTimeControl);
+    setOpponentTime(effectiveTimeControl);
     setTimerResetKey((k) => k + 1);
     setHasClockStarted(false);
     setPreGameCountdown(30);
-  }, [timeControl]);
+  }, [effectiveTimeControl]);
+
+  useEffect(() => {
+    if (hasClockStarted || isGameOver) return;
+    setPlayerTime(effectiveTimeControl);
+    setOpponentTime(effectiveTimeControl);
+    setTimerResetKey((k) => k + 1);
+  }, [effectiveTimeControl, hasClockStarted, isGameOver]);
 
   useEffect(() => {
     preGameTimeUpFired.current = false;
     setIsGameOver(false);
     setIsPlayerTurn(isBotGame ? botPlayerColor === "white" : true);
     setPreGameCountdown(30);
-    // Em partida online o relógio de 10 min só começa após a primeira jogada (handleFirstMove)
+    // Em partida online o relógio só começa após a primeira jogada (handleFirstMove)
     if (isOnlineGame) {
       setHasClockStarted(false);
     } else if (isBotGame && botPlayerColor === "black") {

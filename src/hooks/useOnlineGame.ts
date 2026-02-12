@@ -4,6 +4,7 @@ import type { GameState, Move, PieceColor } from "@/lib/chess";
 import { replayMoveHistory, serializeMove, applyMoveToState } from "@/lib/chess";
 import type { SerializedMove } from "@/lib/chess";
 import { invokeEdgeFunction } from "@/lib/edgeFunctionAuth";
+import { timeControlToSeconds } from "@/lib/utils";
 
 export type OnlineGameRow = {
   id: string;
@@ -13,6 +14,7 @@ export type OnlineGameRow = {
   status: string;
   result: string | null;
   bet_amount?: number | null;
+  time_control?: string | null;
 };
 
 export type OpponentInfo = {
@@ -69,7 +71,7 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
     }
     const { data: gameRow, error: gameErr } = await supabase
       .from("games")
-      .select("id, white_player_id, black_player_id, move_history, status, result, bet_amount")
+      .select("id, white_player_id, black_player_id, move_history, status, result, bet_amount, time_control")
       .eq("id", gameId)
       .single();
 
@@ -92,6 +94,7 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
       status: String(row.status ?? "in_progress"),
       result: row.result != null ? String(row.result) : null,
       bet_amount: row.bet_amount != null && typeof row.bet_amount === "number" ? row.bet_amount : null,
+      time_control: row.time_control != null ? String(row.time_control).trim() || null : null,
     };
     setGame(normalized);
 
@@ -139,6 +142,7 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
               status: String(raw?.status ?? ""),
               result: raw?.result != null ? String(raw.result) : null,
               bet_amount: raw?.bet_amount != null && typeof raw.bet_amount === "number" ? raw.bet_amount : (prev?.bet_amount ?? null),
+              time_control: raw?.time_control != null ? String(raw.time_control).trim() || null : (prev?.time_control ?? null),
             };
             return prev ? { ...prev, ...row } : row;
           });
@@ -237,5 +241,6 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
     makeMove,
     refetch: fetchGame,
     betAmount: typeof game?.bet_amount === "number" && game.bet_amount > 0 ? game.bet_amount : null,
+    timeControlSeconds: timeControlToSeconds(game?.time_control ?? null),
   };
 }
