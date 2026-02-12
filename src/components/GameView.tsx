@@ -6,7 +6,7 @@ import GameTimer from "./GameTimer";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Flag, RotateCcw, Bot, Maximize2, Minimize2, MessageCircle } from "lucide-react";
+import { Flag, RotateCcw, Bot, Maximize2, Minimize2, MessageCircle, Trophy } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -385,13 +385,21 @@ const GameView = ({
                   gameResult === "draw" && "bg-muted text-muted-foreground border-border"
                 )}
               >
-                {gameResult === "win" && "Você Ganhou"}
-                {gameResult === "lose" && "Você Perdeu"}
-                {gameResult === "draw" && "Empate"}
-                {gameResult === "win" && isOnlineGame && lastFinishReward && (
+                <div className="flex flex-col items-center gap-2">
+                  {gameResult === "win" && (
+                    <Trophy className="w-12 h-12 sm:w-14 sm:h-14 text-rank-gold" aria-hidden />
+                  )}
+                  {gameResult === "lose" && (
+                    <Trophy className="w-12 h-12 sm:w-14 sm:h-14 text-rank-bronze" aria-hidden />
+                  )}
+                  {gameResult === "win" && "Você Ganhou"}
+                  {gameResult === "lose" && "Você Perdeu"}
+                  {gameResult === "draw" && "Empate"}
+                </div>
+                {isOnlineGame && lastFinishReward && (
                   <div className="mt-3 text-lg font-normal space-y-0.5">
                     {lastFinishReward.eloChange != null && lastFinishReward.eloChange !== 0 && (
-                      <p className="tabular-nums">
+                      <p className={cn("tabular-nums", lastFinishReward.eloChange < 0 && "text-destructive")}>
                         {lastFinishReward.eloChange > 0 ? "+" : ""}{lastFinishReward.eloChange} ELO
                       </p>
                     )}
