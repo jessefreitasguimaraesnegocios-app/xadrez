@@ -48,7 +48,9 @@ export function useUnreadDirectCount() {
     const onVisible = () => {
       if (document.visibilityState === "visible") fetchCount();
     };
+    const onFocus = () => fetchCount();
     document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
 
     const poll = setInterval(() => {
       if (document.visibilityState === "visible") fetchCount();
@@ -57,6 +59,7 @@ export function useUnreadDirectCount() {
     return () => {
       supabase.removeChannel(channel);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
       clearInterval(poll);
     };
   }, [myId, fetchCount]);

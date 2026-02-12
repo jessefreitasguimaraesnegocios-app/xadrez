@@ -144,15 +144,26 @@ export const useMatchmaking = () => {
   const findMatch = async (timeControl: string, betAmount: number) => {
     if (!user || !profile) return;
 
-    const { data: opponents, error } = await supabase
+    const isNormal = betAmount === 0;
+    const eloRange = isNormal ? 100 : 200;
+
+    let query = supabase
       .from('matchmaking_queue')
       .select('*')
       .eq('time_control', timeControl)
       .neq('user_id', user.id)
-      .gte('elo_rating', profile.elo_rating - 200)
-      .lte('elo_rating', profile.elo_rating + 200)
+      .gte('elo_rating', profile.elo_rating - eloRange)
+      .lte('elo_rating', profile.elo_rating + eloRange)
       .order('joined_at', { ascending: true })
       .limit(1);
+
+    if (isNormal) {
+      query = query.eq('bet_amount', 0);
+    } else {
+      query = query.gt('bet_amount', 0);
+    }
+
+    const { data: opponents, error } = await query;
 
     if (error) {
       console.error('Error finding match:', error);

@@ -28,6 +28,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useGameInvites, type GameInviteWithFrom } from "@/hooks/useGameInvites";
 import { useMyTournaments } from "@/hooks/useMyTournaments";
 import { useUnreadBySender } from "@/hooks/useUnreadBySender";
+import { useUnreadDirectCount, DIRECT_MESSAGES_READ_EVENT } from "@/hooks/useUnreadDirectCount";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import FriendChatPanel from "@/components/FriendChatPanel";
@@ -158,6 +159,8 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [chatFriend, setChatFriend] = useState<(ProfileRow & { friendshipId: string }) | null>(null);
   const unreadBySender = useUnreadBySender();
+  const { count: unreadDirectCount, refetch: refetchUnreadDirect } = useUnreadDirectCount();
+  const [markAllReadLoading, setMarkAllReadLoading] = useState(false);
 
   const myUserId = user?.id ?? null;
 
@@ -384,10 +387,40 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
 
   const displayName = (p: ProfileRow) => p.display_name || p.username;
 
+  const handleMarkAllAsRead = async () => {
+    if (!myUserId) return;
+    setMarkAllReadLoading(true);
+    const { error } = await supabase
+      .from("direct_messages")
+      .update({ read_at: new Date().toISOString() })
+      .eq("receiver_id", myUserId)
+      .is("read_at", null);
+    setMarkAllReadLoading(false);
+    if (!error) {
+      window.dispatchEvent(new CustomEvent(DIRECT_MESSAGES_READ_EVENT));
+      refetchUnreadDirect();
+      toast({ title: "Mensagens marcadas como lidas." });
+    } else {
+      toast({ variant: "destructive", title: "Erro", description: error.message });
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="font-display font-bold text-xl">Amigos</h2>
+        <div className="flex items-center gap-2">
+          {Number(unreadDirectCount) > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={handleMarkAllAsRead}
+              disabled={markAllReadLoading}
+            >
+              {markAllReadLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Marcar todas como lidas"}
+            </Button>
+          )}
         <Dialog open={addFriendOpen} onOpenChange={setAddFriendOpen}>
           <DialogTrigger asChild>
             <Button size="sm" className="gap-2" disabled={!user}>
@@ -459,6 +492,8 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
+      </div>
 
         {/* Dialog: Chamar amigo para partida (normal ou apostada) */}
         <Dialog open={inviteDialogOpen} onOpenChange={(open) => { setInviteDialogOpen(open); if (!open) setInviteTarget(null); }}>
@@ -548,7 +583,6 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
             )}
           </DialogContent>
         </Dialog>
-      </div>
 
       {/* Convites de partida recebidos */}
       {gameInvitesReceived.length > 0 && (

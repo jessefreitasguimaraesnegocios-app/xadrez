@@ -202,7 +202,7 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
         return;
       }
 
-      if (isGameOver && betAmount > 0 && result) {
+      if (isGameOver && result) {
         const { data: { session }, error: sessionErr } = await supabase.auth.refreshSession();
         if (session?.access_token) {
           const { error: finishErr } = await invokeEdgeFunction(
@@ -214,7 +214,7 @@ export function useOnlineGame(gameId: string | null, userId: string | null) {
             setError(finishErr.message);
           }
         } else if (sessionErr) {
-          setError(sessionErr.message ?? "Sessão inválida para encerrar aposta.");
+          setError(sessionErr.message ?? "Sessão inválida para encerrar partida.");
         }
       }
     },

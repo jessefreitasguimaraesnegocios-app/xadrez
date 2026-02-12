@@ -8,6 +8,16 @@ import { useWallet } from "@/hooks/useWallet";
 import { useMyTournaments } from "@/hooks/useMyTournaments";
 import { useNavigate, Link } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const DEFAULT_BET = 5;
 const MIN_BALANCE_TO_BET = 1;
@@ -51,6 +61,8 @@ interface QuickPlayProps {
   onStartGame: (gameId?: string | null) => void;
 }
 
+type GameModeType = "normal" | "bet";
+
 const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
   const { user } = useAuth();
   const { balance_available } = useWallet();
@@ -58,6 +70,8 @@ const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
   const navigate = useNavigate();
   const { isSearching, matchFound, gameId, joinQueue, leaveQueue } = useMatchmaking();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
+  const [gameMode, setGameMode] = useState<GameModeType>("normal");
+  const [confirmBetOpen, setConfirmBetOpen] = useState(false);
 
   const canBet = user && balance_available >= MIN_BALANCE_TO_BET;
   const betAmount = canBet ? DEFAULT_BET : 0;
@@ -68,13 +82,17 @@ const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
       return;
     }
     if (blocksPlaying) return;
-    if (balance_available < MIN_BALANCE_TO_BET) {
-      navigate('/wallet');
-      return;
+    if (gameMode === "bet") {
+      if (balance_available < MIN_BALANCE_TO_BET) {
+        navigate('/wallet');
+        return;
+      }
+      setSelectedMode(mode.id);
+      await joinQueue(mode.time, betAmount);
+    } else {
+      setSelectedMode(mode.id);
+      await joinQueue(mode.time, 0);
     }
-
-    setSelectedMode(mode.id);
-    await joinQueue(mode.time, betAmount);
   };
 
   const handleCancel = async () => {
@@ -90,8 +108,57 @@ const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
 
   return (
     <div className="space-y-4">
-      <h2 className="font-display font-bold text-xl">Jogar Agora</h2>
-      
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="font-display font-bold text-xl">Jogar Agora</h2>
+        <div className="flex rounded-lg border border-border p-0.5 bg-muted/50">
+          <button
+            type="button"
+            onClick={() => setGameMode("normal")}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              gameMode === "normal"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Normal
+          </button>
+          <button
+            type="button"
+            onClick={() => (gameMode === "normal" ? setConfirmBetOpen(true) : undefined)}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              gameMode === "bet"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Apostada
+          </button>
+        </div>
+
+        <AlertDialog open={confirmBetOpen} onOpenChange={setConfirmBetOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Partida apostada</AlertDialogTitle>
+              <AlertDialogDescription>
+                Na partida apostada você usa saldo real da sua carteira. O valor da aposta será bloqueado e, ao final, o ganhador recebe o prêmio (menos taxa da plataforma). Você pode ganhar ou perder dinheiro. Deseja continuar?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={() => {
+                  setGameMode("bet");
+                  setConfirmBetOpen(false);
+                }}
+              >
+                Sim, quero apostar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+
       {isSearching ? (
         <Card className="p-6 bg-card border-primary/50 text-center">
           <div className="flex flex-col items-center gap-4">
@@ -111,7 +178,7 @@ const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
             <div>
               <h3 className="font-display font-semibold text-lg">Buscando oponente...</h3>
               <p className="text-sm text-muted-foreground">
-                Modo: {gameTypes.find(t => t.id === selectedMode)?.name} ({gameTypes.find(t => t.id === selectedMode)?.time})
+                Modo: {gameTypes.find(t => t.id === selectedMode)?.name} ({gameTypes.find(t => t.id === selectedMode)?.time}) • {gameMode === "bet" ? "Apostada" : "Normal (ELO)"}
               </p>
             </div>
             <Button variant="outline" onClick={handleCancel} className="gap-2">
@@ -130,13 +197,15 @@ const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
             </Alert>
           )}
           <div className="grid grid-cols-2 gap-4">
-            {gameTypes.map((type) => (
+            {gameTypes.map((type) => {
+              const disabled = blocksPlaying || (gameMode === "bet" && balance_available < MIN_BALANCE_TO_BET);
+              return (
               <Card
                 key={type.id}
                 className={`p-4 bg-card border-border transition-all group ${
-                  blocksPlaying ? "opacity-60 cursor-not-allowed" : "hover:border-primary/50 cursor-pointer"
+                  disabled ? "opacity-60 cursor-not-allowed" : "hover:border-primary/50 cursor-pointer"
                 }`}
-                onClick={() => handleSelectMode(type)}
+                onClick={() => !disabled && handleSelectMode(type)}
               >
               <div className="flex items-center gap-3 mb-2">
                 <div className={`p-2 rounded-lg bg-secondary group-hover:bg-primary/20 transition-colors`}>
@@ -149,7 +218,8 @@ const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
               </div>
               <p className="text-xs text-muted-foreground">{type.description}</p>
             </Card>
-          ))}
+          );
+          })}
           </div>
         </>
       )}
@@ -163,7 +233,7 @@ const QuickPlay = ({ onStartGame }: QuickPlayProps) => {
         </p>
       )}
 
-      {user && balance_available < MIN_BALANCE_TO_BET && (
+      {user && gameMode === "bet" && balance_available < MIN_BALANCE_TO_BET && (
         <Card className="p-4 bg-muted/50 border-border text-center">
           <p className="text-sm text-muted-foreground mb-2">Saldo insuficiente para apostar.</p>
           <Link to="/wallet">
