@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 interface TournamentCardProps {
-  id: number;
+  id: number | string;
   name: string;
   participants: number;
   maxParticipants: number;

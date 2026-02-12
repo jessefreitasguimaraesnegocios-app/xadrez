@@ -4,6 +4,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 type TemplateRow = {
@@ -25,7 +27,7 @@ type TemplateRow = {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: CORS_HEADERS });
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
   try {
@@ -195,9 +197,15 @@ Deno.serve(async (req: Request) => {
         .from("tournament_templates")
         .select("*")
         .eq("active", true);
-      if (tErr || !templates?.length) {
+      if (tErr) {
         return new Response(
-          JSON.stringify({ error: "No active templates", generated: 0 }),
+          JSON.stringify({ error: "Falha ao buscar templates", details: tErr.message, generated: 0 }),
+          { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
+      if (!templates?.length) {
+        return new Response(
+          JSON.stringify({ error: "Nenhum template ativo. Ative um template em Administração → Torneios.", generated: 0 }),
           { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
         );
       }

@@ -111,6 +111,10 @@ const Admin = () => {
     if (data) setReport(data);
   }, [session?.access_token, reportFrom, reportTo, toast]);
 
+  useEffect(() => {
+    if (activeTab === "report" && session?.access_token) fetchReport();
+  }, [activeTab, session?.access_token, fetchReport]);
+
   const fetchTemplates = useCallback(async () => {
     if (!session?.access_token) return;
     setTemplatesLoading(true);
@@ -150,6 +154,7 @@ const Admin = () => {
     }
     toast({ title: "Torneios gerados", description: `${data?.generated ?? 0} torneio(s) criado(s) para os próximos ${generateDays} dias.` });
     fetchTemplates();
+    window.dispatchEvent(new Event("tournaments-generated"));
   };
 
   const openNewTemplate = () => {
@@ -189,9 +194,8 @@ const Admin = () => {
     setSaveLoading(true);
     const slots = formTimeSlots.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
     if (slots.length === 0) slots.push("20:00");
-    const payload = {
+    const payload: Record<string, unknown> = {
       action: editingTemplate ? "update" : "create",
-      id: editingTemplate?.id,
       name: formName.trim(),
       description: formDescription.trim() || null,
       format: formFormat,
@@ -204,6 +208,7 @@ const Admin = () => {
       duration_minutes: formDurationMinutes ? parseInt(formDurationMinutes, 10) : null,
       active: formActive,
     };
+    if (editingTemplate?.id) payload.id = editingTemplate.id;
     const { data, error } = await invokeEdgeFunction(
       { access_token: session.access_token },
       "admin-tournaments",
@@ -315,10 +320,12 @@ const Admin = () => {
                   {report && !reportLoading && (
                     <>
                       <div className="text-3xl font-bold text-primary">
-                        Total: R$ {report.total_revenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        Total: R$ {report.total_revenue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
-                      <p className="text-sm text-muted-foreground">{report.count} partida(s) com aposta</p>
-                      {report.items.length > 0 && (
+                      <p className="text-sm text-muted-foreground">{report.count} partida(s) com aposta no período</p>
+                      {report.items.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-4 border rounded-md text-center">Nenhuma partida com aposta finalizada no período selecionado.</p>
+                      ) : (
                         <div className="rounded-md border overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead>

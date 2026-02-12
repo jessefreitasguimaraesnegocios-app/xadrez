@@ -2,6 +2,7 @@ import TournamentCard from "./TournamentCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMyTournaments } from "@/hooks/useMyTournaments";
+import { useTournaments } from "@/hooks/useTournaments";
 import { TournamentCountdown } from "@/components/TournamentCountdown";
 import { Trophy, Users, Coins, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -13,58 +14,42 @@ const formatLabels: Record<string, string> = {
   round_robin: "Round Robin",
 };
 
-const mockTournaments = [
-  {
-    id: 1,
-    name: "Grande Prêmio Brasil",
-    participants: 48,
-    maxParticipants: 64,
-    prizePool: 5000,
-    entryFee: 50,
-    startTime: "Hoje, 20:00",
-    status: "open" as const,
-    format: "Eliminação Simples • Blitz",
-  },
-  {
-    id: 2,
-    name: "Torneio Semanal",
-    participants: 32,
-    maxParticipants: 32,
-    prizePool: 1500,
-    entryFee: 25,
-    startTime: "Em andamento",
-    status: "in_progress" as const,
-    format: "Suíço • Rápida",
-  },
-  {
-    id: 3,
-    name: "Arena Noturna",
-    participants: 24,
-    maxParticipants: 128,
-    prizePool: 2000,
-    entryFee: 10,
-    startTime: "Amanhã, 21:00",
-    status: "open" as const,
-    format: "Arena • Bullet",
-  },
-  {
-    id: 4,
-    name: "Campeonato Mensal",
-    participants: 64,
-    maxParticipants: 64,
-    prizePool: 10000,
-    entryFee: 100,
-    startTime: "Finalizado",
-    status: "finished" as const,
-    format: "Eliminação Dupla • Clássica",
-  },
-];
+function formatStartTime(startsAt: string, status: string): string {
+  if (status === "in_progress") return "Em andamento";
+  if (status === "completed") return "Finalizado";
+  const d = new Date(startsAt);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const time = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  if (dDay.getTime() === today.getTime()) return `Hoje, ${time}`;
+  if (dDay.getTime() === tomorrow.getTime()) return `Amanhã, ${time}`;
+  return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function toCardFormat(t: { id: string; name: string; format: string; status: string; time_control?: string; max_participants: number; entry_fee: number; prize_pool: number; starts_at: string; participants: number }) {
+  const statusMap = { upcoming: "open" as const, in_progress: "in_progress" as const, completed: "finished" as const };
+  return {
+    id: t.id,
+    name: t.name,
+    participants: t.participants,
+    maxParticipants: t.max_participants,
+    prizePool: t.prize_pool,
+    entryFee: t.entry_fee,
+    startTime: formatStartTime(t.starts_at, t.status),
+    status: statusMap[t.status as keyof typeof statusMap] ?? "open",
+    format: `${formatLabels[t.format] ?? t.format} • ${t.time_control ?? ""}`.trim(),
+  };
+}
 
 const TournamentList = () => {
   const { myTournaments, loading: myLoading } = useMyTournaments();
-  const openTournaments = mockTournaments.filter((t) => t.status === "open");
-  const inProgressTournaments = mockTournaments.filter((t) => t.status === "in_progress");
-  const finishedTournaments = mockTournaments.filter((t) => t.status === "finished");
+  const { open, inProgress, finished, loading: listLoading } = useTournaments();
+  const openTournaments = open.map(toCardFormat);
+  const inProgressTournaments = inProgress.map(toCardFormat);
+  const finishedTournaments = finished.map(toCardFormat);
 
   return (
     <div className="space-y-4">
@@ -157,31 +142,60 @@ const TournamentList = () => {
         
         <TabsContent value="open">
           <ScrollArea className="h-[500px] pr-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              {openTournaments.map((tournament) => (
-                <TournamentCard key={tournament.id} {...tournament} />
-              ))}
-            </div>
+            {listLoading ? (
+              <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
+                <Loader2 className="w-6 h-6 animate-spin" />
+                Carregando...
+              </div>
+            ) : openTournaments.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                Nenhum torneio aberto no momento. Crie templates na Administração e use &quot;Gerar torneios&quot; para criar.
+              </p>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {openTournaments.map((tournament) => (
+                  <TournamentCard key={tournament.id} {...tournament} />
+                ))}
+              </div>
+            )}
           </ScrollArea>
         </TabsContent>
-        
+
         <TabsContent value="progress">
           <ScrollArea className="h-[500px] pr-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              {inProgressTournaments.map((tournament) => (
-                <TournamentCard key={tournament.id} {...tournament} />
-              ))}
-            </div>
+            {listLoading ? (
+              <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
+                <Loader2 className="w-6 h-6 animate-spin" />
+                Carregando...
+              </div>
+            ) : inProgressTournaments.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">Nenhum torneio em andamento.</p>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {inProgressTournaments.map((tournament) => (
+                  <TournamentCard key={tournament.id} {...tournament} />
+                ))}
+              </div>
+            )}
           </ScrollArea>
         </TabsContent>
-        
+
         <TabsContent value="finished">
           <ScrollArea className="h-[500px] pr-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              {finishedTournaments.map((tournament) => (
-                <TournamentCard key={tournament.id} {...tournament} />
-              ))}
-            </div>
+            {listLoading ? (
+              <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
+                <Loader2 className="w-6 h-6 animate-spin" />
+                Carregando...
+              </div>
+            ) : finishedTournaments.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">Nenhum torneio finalizado.</p>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {finishedTournaments.map((tournament) => (
+                  <TournamentCard key={tournament.id} {...tournament} />
+                ))}
+              </div>
+            )}
           </ScrollArea>
         </TabsContent>
       </Tabs>
