@@ -126,7 +126,7 @@ export function useBettingStats(userId: string | undefined) {
 
     const byId: Record<string, { display_name: string | null; username: string; elo_rating: number }> = {};
     (profiles ?? []).forEach((p: { user_id: string; display_name: string | null; username: string; elo_rating: number }) => {
-      byId[p.user_id] = { display_name: p.display_name, username: p.username, elo_rating: p.elo_rating ?? 1200 };
+      byId[p.user_id] = { display_name: p.display_name, username: p.username, elo_rating: p.elo_rating ?? 0 };
     });
 
     const items: BetHistoryItem[] = games.map((g: { id: string; result: string | null; white_player_id: string | null; black_player_id: string | null; bet_amount: number; ended_at: string | null }) => {
@@ -190,16 +190,16 @@ export function useBettingStats(userId: string | undefined) {
 
     const byId: Record<string, { display_name: string | null; username: string; elo_rating: number }> = {};
     (profiles ?? []).forEach((p: { user_id: string; display_name: string | null; username: string; elo_rating: number }) => {
-      byId[p.user_id] = { display_name: p.display_name, username: p.username, elo_rating: p.elo_rating ?? 1200 };
+      byId[p.user_id] = { display_name: p.display_name, username: p.username, elo_rating: p.elo_rating ?? 0 };
     });
     const player = myId ? byId[myId] : null;
     const opponent = oppId ? byId[oppId] : null;
     setActiveGame({
       gameId: g.id,
       playerName: player ? (player.display_name || player.username) : "",
-      playerRating: player?.elo_rating ?? 1200,
+      playerRating: player?.elo_rating ?? 0,
       opponentName: opponent ? (opponent.display_name || opponent.username) : "Oponente",
-      opponentRating: opponent?.elo_rating ?? 1200,
+      opponentRating: opponent?.elo_rating ?? 0,
       betAmount: Number(g.bet_amount) || 0,
       playerIsWhite: isWhite,
     });

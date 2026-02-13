@@ -425,7 +425,7 @@ const GameView = ({
               </Avatar>
               <div>
                 <p className="font-medium">{profile?.display_name || profile?.username || 'Você'}</p>
-                <p className="text-sm text-muted-foreground">{profile?.elo_rating || 1200} ELO</p>
+                <p className="text-sm text-muted-foreground">{profile?.elo_rating ?? 0} ELO</p>
               </div>
             </div>
             {hasClockStarted ? (
@@ -505,7 +505,7 @@ const GameView = ({
         <div className="lg:w-[360px]">
           <BettingPanel
             playerName={profile?.display_name || profile?.username || 'Você'}
-            playerRating={profile?.elo_rating || 1200}
+            playerRating={profile?.elo_rating ?? 0}
             opponentName={isOnlineGame && onlineOpponent ? (onlineOpponent.display_name || onlineOpponent.username) : 'Oponente'}
             opponentRating={isOnlineGame && onlineOpponent ? onlineOpponent.elo_rating : 0}
             minBet={10}

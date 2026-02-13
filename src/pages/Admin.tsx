@@ -58,6 +58,15 @@ type TournamentTemplate = {
   updated_at: string;
 };
 
+type GeneratedTournament = {
+  id: string;
+  name: string;
+  status: string;
+  starts_at: string;
+  entry_fee: number;
+  max_participants: number;
+};
+
 const formatLabels: Record<string, string> = {
   swiss: "Suíço",
   knockout: "Eliminação",
@@ -75,6 +84,10 @@ const Admin = () => {
   const [reportTo, setReportTo] = useState(() => today());
   const [templates, setTemplates] = useState<TournamentTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [generatedTournaments, setGeneratedTournaments] = useState<GeneratedTournament[]>([]);
+  const [generatedTournamentsLoading, setGeneratedTournamentsLoading] = useState(false);
+  const [deletingTournamentId, setDeletingTournamentId] = useState<string | null>(null);
+  const [deletingBulk, setDeletingBulk] = useState(false);
   const [generateDays, setGenerateDays] = useState(7);
   const [generateLoading, setGenerateLoading] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
@@ -141,6 +154,64 @@ const Admin = () => {
     if (activeTab === "tournaments" && session?.access_token) fetchTemplates();
   }, [activeTab, session?.access_token, fetchTemplates]);
 
+  const fetchGeneratedTournaments = useCallback(async () => {
+    if (!session?.access_token) return;
+    setGeneratedTournamentsLoading(true);
+    const { data, error } = await invokeEdgeFunction<{ tournaments: GeneratedTournament[] }>(
+      { access_token: session.access_token },
+      "admin-tournaments",
+      { action: "list_tournaments", limit: 200 }
+    );
+    setGeneratedTournamentsLoading(false);
+    if (error) {
+      toast({ variant: "destructive", title: "Erro ao carregar torneios gerados", description: error.message });
+      return;
+    }
+    if (data?.tournaments) setGeneratedTournaments(data.tournaments);
+  }, [session?.access_token, toast]);
+
+  useEffect(() => {
+    if (activeTab === "tournaments" && session?.access_token) fetchGeneratedTournaments();
+  }, [activeTab, session?.access_token, fetchGeneratedTournaments]);
+
+  const deleteGeneratedTournament = async (id: string) => {
+    if (!session?.access_token) return;
+    setDeletingTournamentId(id);
+    const { error } = await invokeEdgeFunction(
+      { access_token: session.access_token },
+      "admin-tournaments",
+      { action: "delete_tournament", id }
+    );
+    setDeletingTournamentId(null);
+    if (error) {
+      toast({ variant: "destructive", title: "Erro ao excluir torneio", description: error.message });
+      return;
+    }
+    toast({ title: "Torneio excluído" });
+    fetchGeneratedTournaments();
+    window.dispatchEvent(new Event("tournaments-generated"));
+  };
+
+  const deleteAllListedTournaments = async () => {
+    if (!session?.access_token || generatedTournaments.length === 0) return;
+    if (!window.confirm(`Excluir todos os ${generatedTournaments.length} torneios listados? Inscrições serão removidas.`)) return;
+    setDeletingBulk(true);
+    const ids = generatedTournaments.map((t) => t.id);
+    const { data, error } = await invokeEdgeFunction<{ deleted?: number }>(
+      { access_token: session.access_token },
+      "admin-tournaments",
+      { action: "delete_tournaments_bulk", ids }
+    );
+    setDeletingBulk(false);
+    if (error) {
+      toast({ variant: "destructive", title: "Erro ao excluir torneios", description: error.message });
+      return;
+    }
+    toast({ title: "Torneios excluídos", description: `${data?.deleted ?? ids.length} torneio(s) removido(s).` });
+    fetchGeneratedTournaments();
+    window.dispatchEvent(new Event("tournaments-generated"));
+  };
+
   const handleGenerateTournaments = async () => {
     if (!session?.access_token) return;
     setGenerateLoading(true);
@@ -156,6 +227,7 @@ const Admin = () => {
     }
     toast({ title: "Torneios gerados", description: `${data?.generated ?? 0} torneio(s) criado(s). Eles já aparecem na aba Torneios (menu lateral) para os jogadores se inscreverem.` });
     fetchTemplates();
+    fetchGeneratedTournaments();
     window.dispatchEvent(new Event("tournaments-generated"));
   };
 
@@ -389,6 +461,54 @@ const Admin = () => {
                   </div>
                   {templates.length === 0 && !templatesLoading && (
                     <p className="text-sm text-muted-foreground">Crie pelo menos um template abaixo para gerar torneios.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Torneios gerados (abertos e em andamento)</CardTitle>
+                    <CardDescription>Lista dos torneios que aparecem na aba Torneios para os jogadores. Exclua um a um ou todos de uma vez.</CardDescription>
+                  </div>
+                  {generatedTournaments.length > 0 && (
+                    <Button variant="destructive" size="sm" onClick={deleteAllListedTournaments} disabled={deletingBulk}>
+                      {deletingBulk ? <Loader2 className="w-4 h-4 animate-spin" /> : "Excluir todos os listados"}
+                    </Button>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {generatedTournamentsLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : generatedTournaments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4">Nenhum torneio gerado (aberto ou em andamento). Use &quot;Gerar torneios&quot; acima.</p>
+                  ) : (
+                    <ul className="space-y-2 max-h-[320px] overflow-y-auto pr-2">
+                      {generatedTournaments.map((t) => (
+                        <li
+                          key={t.id}
+                          className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/30"
+                        >
+                          <div>
+                            <p className="font-medium">{t.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {new Date(t.starts_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} • Entrada R$ {Number(t.entry_fee).toFixed(2)} • {t.max_participants} jogadores
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => deleteGeneratedTournament(t.id)}
+                            disabled={deletingTournamentId === t.id || deletingBulk}
+                            title="Excluir torneio"
+                          >
+                            {deletingTournamentId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 text-destructive" />}
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </CardContent>
               </Card>

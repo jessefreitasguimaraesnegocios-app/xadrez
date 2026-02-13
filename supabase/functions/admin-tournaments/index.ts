@@ -195,6 +195,69 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    if (action === "list_tournaments") {
+      const limit = Math.min(500, Math.max(1, Number(body?.limit) ?? 100));
+      const { data: list, error } = await supabase
+        .from("tournaments")
+        .select("id, name, status, starts_at, entry_fee, max_participants")
+        .in("status", ["upcoming", "in_progress"])
+        .order("starts_at", { ascending: true })
+        .limit(limit);
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ tournaments: list ?? [] }), {
+        status: 200,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "delete_tournament") {
+      const id = body?.id;
+      if (!id) {
+        return new Response(JSON.stringify({ error: "id required" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      const { error } = await supabase.from("tournaments").delete().eq("id", id);
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "delete_tournaments_bulk") {
+      const ids = body?.ids;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return new Response(JSON.stringify({ error: "ids array required" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      const validIds = ids.slice(0, 500).filter((x: unknown) => typeof x === "string");
+      const { error } = await supabase.from("tournaments").delete().in("id", validIds);
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true, deleted: validIds.length }), {
+        status: 200,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "generate") {
       const daysAhead = Math.max(1, Math.min(30, Number(body?.daysAhead) ?? 7));
       const { data: templates, error: tErr } = await supabase

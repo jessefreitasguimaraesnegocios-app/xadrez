@@ -114,7 +114,7 @@ const Profile = () => {
                     {profile?.display_name || profile?.username}
                   </h1>
                   <div className="px-3 py-1 bg-primary/20 rounded-full">
-                    <span className="text-primary font-bold">{profile?.elo_rating || 1200} ELO</span>
+                    <span className="text-primary font-bold">{profile?.elo_rating ?? 0} ELO</span>
                   </div>
                 </div>
                 <p className="text-muted-foreground mt-1">@{profile?.username}</p>
