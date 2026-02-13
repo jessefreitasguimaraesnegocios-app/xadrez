@@ -95,7 +95,7 @@ const GameView = ({
       : isOnlineGame && onlineOpponent
         ? onlineOpponent.display_name || onlineOpponent.username
         : "Oponente";
-  const opponentElo = isOnlineGame && onlineOpponent ? onlineOpponent.elo_rating : 1920;
+  const opponentElo = isOnlineGame && onlineOpponent ? onlineOpponent.elo_rating : 0;
 
   const handlePlayerTimeUp = useCallback(() => {
     if (isGameOver) return;
@@ -507,7 +507,7 @@ const GameView = ({
             playerName={profile?.display_name || profile?.username || 'Você'}
             playerRating={profile?.elo_rating || 1200}
             opponentName={isOnlineGame && onlineOpponent ? (onlineOpponent.display_name || onlineOpponent.username) : 'Oponente'}
-            opponentRating={isOnlineGame && onlineOpponent ? onlineOpponent.elo_rating : 1920}
+            opponentRating={isOnlineGame && onlineOpponent ? onlineOpponent.elo_rating : 0}
             minBet={10}
             maxBet={500}
             matchBetAmount={isOnlineGame ? onlineBetAmount ?? null : null}

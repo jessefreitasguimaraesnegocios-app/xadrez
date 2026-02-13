@@ -25,9 +25,11 @@ import type { BotDifficulty } from "@/lib/chess";
 import { getNextRandomColor } from "@/lib/randomColor";
 import { supabase } from "@/integrations/supabase/client";
 import { FRIENDS_TAB_OPENED_EVENT } from "@/hooks/useUnreadDirectCount";
+import { useBettingStats } from "@/hooks/useBettingStats";
 
 const Index = () => {
   const { profile, user } = useAuth();
+  const { stats: bettingStats, history: bettingHistory, activeGame: activeBetGame, historyLoading: bettingHistoryLoading, activeLoading: activeBetLoading, refetchActive: refetchActiveBet } = useBettingStats(user?.id ?? undefined);
   const location = useLocation();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -253,74 +255,94 @@ const Index = () => {
                 <div className="grid gap-6 lg:grid-cols-2">
                   <Card className="p-6 bg-card border-border">
                     <h3 className="font-display font-semibold text-lg mb-4">Sua Próxima Partida</h3>
-                    <BettingPanel
-                      playerName="João Silva"
-                      playerRating={1850}
-                      opponentName="ChessMaster99"
-                      opponentRating={1920}
-                      minBet={10}
-                      maxBet={500}
-                    />
+                    {activeBetLoading ? (
+                      <div className="py-8 text-center text-muted-foreground text-sm">Carregando...</div>
+                    ) : activeBetGame ? (
+                      <BettingPanel
+                        playerName={activeBetGame.playerName}
+                        playerRating={activeBetGame.playerRating}
+                        opponentName={activeBetGame.opponentName}
+                        opponentRating={activeBetGame.opponentRating}
+                        minBet={10}
+                        maxBet={500}
+                        matchBetAmount={activeBetGame.betAmount}
+                      />
+                    ) : (
+                      <div className="py-8 text-center text-muted-foreground">
+                        <p className="mb-2">Nenhuma partida ativa com aposta.</p>
+                        <Button variant="outline" size="sm" onClick={() => setActiveTab("play")}>
+                          Ir para Jogar
+                        </Button>
+                      </div>
+                    )}
                   </Card>
                   
                   <Card className="p-6 bg-card border-border">
                     <h3 className="font-display font-semibold text-lg mb-4">Estatísticas de Apostas</h3>
-                    <div className="space-y-4">
-                      <div className="p-4 rounded-lg bg-secondary">
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Total Apostado</span>
-                          <span className="font-mono font-semibold">R$ 2.450</span>
+                    {bettingStats.loading ? (
+                      <div className="py-8 text-center text-muted-foreground text-sm">Carregando...</div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="p-4 rounded-lg bg-secondary">
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Total Apostado</span>
+                            <span className="font-mono font-semibold">R$ {bettingStats.totalWagered.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+                        <div className="p-4 rounded-lg bg-bet-win/10">
+                          <div className="flex justify-between items-center">
+                            <span className="text-bet-win">Ganhos Totais</span>
+                            <span className="font-mono font-semibold text-bet-win">R$ {bettingStats.totalWinnings.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+                        <div className="p-4 rounded-lg bg-secondary">
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Lucro Líquido</span>
+                            <span className={cn("font-mono font-semibold", bettingStats.profit >= 0 ? "text-bet-win" : "text-bet-lose")}>
+                              {bettingStats.profit >= 0 ? "+" : ""}R$ {bettingStats.profit.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="p-4 rounded-lg bg-secondary">
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Taxa de Sucesso</span>
+                            <span className="font-mono font-semibold">{bettingStats.winRatePct}%</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="p-4 rounded-lg bg-bet-win/10">
-                        <div className="flex justify-between items-center">
-                          <span className="text-bet-win">Ganhos Totais</span>
-                          <span className="font-mono font-semibold text-bet-win">R$ 3.120</span>
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-lg bg-secondary">
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Lucro Líquido</span>
-                          <span className="font-mono font-semibold text-bet-win">+R$ 670</span>
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-lg bg-secondary">
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Taxa de Sucesso</span>
-                          <span className="font-mono font-semibold">68%</span>
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </Card>
                 </div>
               </TabsContent>
               
               <TabsContent value="history">
                 <Card className="p-6 bg-card border-border">
-                  <div className="space-y-3">
-                    {[
-                      { opponent: "GrandMaster_X", result: "win", bet: 100, payout: 80 },
-                      { opponent: "KnightRider", result: "loss", bet: 50, payout: -50 },
-                      { opponent: "QueenGambit", result: "win", bet: 75, payout: 60 },
-                      { opponent: "RookiePro", result: "win", bet: 200, payout: 160 },
-                      { opponent: "BishopKing", result: "loss", bet: 30, payout: -30 },
-                    ].map((game, i) => (
-                      <div key={i} className="flex items-center justify-between p-4 rounded-lg bg-secondary">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${game.result === "win" ? "bg-bet-win" : "bg-bet-lose"}`} />
-                          <div>
-                            <p className="font-medium">vs {game.opponent}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {game.result === "win" ? "Vitória" : "Derrota"} • Aposta: R$ {game.bet}
-                            </p>
+                  {bettingHistoryLoading ? (
+                    <div className="py-8 text-center text-muted-foreground text-sm">Carregando...</div>
+                  ) : bettingHistory.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground">
+                      Nenhuma partida apostada finalizada ainda.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {bettingHistory.map((game) => (
+                        <div key={game.gameId} className="flex items-center justify-between p-4 rounded-lg bg-secondary">
+                          <div className="flex items-center gap-3">
+                            <div className={cn("w-2 h-2 rounded-full", game.result === "win" ? "bg-bet-win" : game.result === "loss" ? "bg-bet-lose" : "bg-muted-foreground")} />
+                            <div>
+                              <p className="font-medium">vs {game.opponentName}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {game.result === "win" ? "Vitória" : game.result === "loss" ? "Derrota" : "Empate"} • Aposta: R$ {game.bet.toFixed(2)}
+                              </p>
+                            </div>
                           </div>
+                          <span className={cn("font-mono font-semibold", game.payout >= 0 ? "text-bet-win" : "text-bet-lose")}>
+                            {game.payout >= 0 ? "+" : ""}R$ {game.payout.toFixed(2)}
+                          </span>
                         </div>
-                        <span className={`font-mono font-semibold ${game.result === "win" ? "text-bet-win" : "text-bet-lose"}`}>
-                          {game.result === "win" ? "+" : ""}R$ {game.payout}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </Card>
               </TabsContent>
             </Tabs>
