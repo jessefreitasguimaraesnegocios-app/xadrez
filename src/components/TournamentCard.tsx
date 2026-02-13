@@ -1,8 +1,20 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, Users, Clock, Coins } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Trophy, Users, Clock, Coins, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TournamentCardProps {
   id: number | string;
@@ -14,9 +26,11 @@ interface TournamentCardProps {
   startTime: string;
   status: "open" | "in_progress" | "finished";
   format: string;
+  onJoinSuccess?: () => void;
 }
 
 const TournamentCard = ({
+  id,
   name,
   participants,
   maxParticipants,
@@ -25,8 +39,11 @@ const TournamentCard = ({
   startTime,
   status,
   format,
+  onJoinSuccess,
 }: TournamentCardProps) => {
   const { toast } = useToast();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [joining, setJoining] = useState(false);
 
   const statusColors = {
     open: "bg-bet-win/20 text-bet-win",
@@ -40,11 +57,39 @@ const TournamentCard = ({
     finished: "Finalizado",
   };
 
-  const handleJoin = () => {
+  const handleConfirmJoin = async () => {
+    setJoining(true);
+    const { data, error } = await supabase
+      .rpc("join_tournament_atomic", { p_tournament_id: String(id) });
+    setJoining(false);
+    setConfirmOpen(false);
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao se inscrever",
+        description: error.message,
+      });
+      return;
+    }
+
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row && row.ok === false && row.error_message) {
+      toast({
+        variant: "destructive",
+        title: "Não foi possível se inscrever",
+        description: row.error_message,
+      });
+      return;
+    }
+
     toast({
       title: "Inscrito com sucesso!",
-      description: `Você foi inscrito no torneio ${name}. Taxa de entrada: R$ ${entryFee}`,
+      description: entryFee > 0
+        ? `R$ ${entryFee.toFixed(2)} foram descontados da sua carteira. Ao final do torneio, o campeão recebe o prêmio em dinheiro; demais participantes ganham pontos.`
+        : `Você está inscrito no torneio ${name}.`,
     });
+    onJoinSuccess?.();
   };
 
   return (
@@ -81,13 +126,35 @@ const TournamentCard = ({
       </div>
 
       <Button
-        onClick={handleJoin}
+        onClick={() => status === "open" && setConfirmOpen(true)}
         disabled={status !== "open"}
         className="w-full"
         variant={status === "open" ? "default" : "secondary"}
       >
         {status === "open" ? "Participar" : status === "in_progress" ? "Em andamento" : "Finalizado"}
       </Button>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar inscrição</AlertDialogTitle>
+            <AlertDialogDescription>
+              Inscrever-se em <strong>{name}</strong>? A taxa de entrada de{" "}
+              <strong>R$ {entryFee.toFixed(2)}</strong> será descontada da sua carteira e somada ao prêmio do torneio.
+              Ao final, o campeão recebe todo o valor em dinheiro (e pontos); os demais participantes ganham apenas pontos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={joining}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleConfirmJoin(); }}
+              disabled={joining}
+            >
+              {joining ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirmar e pagar entrada"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

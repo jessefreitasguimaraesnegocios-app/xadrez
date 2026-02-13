@@ -46,7 +46,7 @@ function toCardFormat(t: { id: string; name: string; format: string; status: str
 
 const TournamentList = () => {
   const { myTournaments, loading: myLoading } = useMyTournaments();
-  const { open, inProgress, finished, loading: listLoading } = useTournaments();
+  const { open, inProgress, finished, loading: listLoading, refetch } = useTournaments();
   const openTournaments = open.map(toCardFormat);
   const inProgressTournaments = inProgress.map(toCardFormat);
   const finishedTournaments = finished.map(toCardFormat);
@@ -149,12 +149,12 @@ const TournamentList = () => {
               </div>
             ) : openTournaments.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">
-                Nenhum torneio aberto no momento. Crie templates na Administração e use &quot;Gerar torneios&quot; para criar.
+                Nenhum torneio aberto no momento. Se você é admin: em <strong>Administração → Torneios</strong>, crie templates e depois clique em <strong>&quot;Gerar torneios&quot;</strong> (só os torneios gerados aparecem aqui).
               </p>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {openTournaments.map((tournament) => (
-                  <TournamentCard key={tournament.id} {...tournament} />
+                  <TournamentCard key={tournament.id} {...tournament} onJoinSuccess={refetch} />
                 ))}
               </div>
             )}
@@ -173,7 +173,7 @@ const TournamentList = () => {
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {inProgressTournaments.map((tournament) => (
-                  <TournamentCard key={tournament.id} {...tournament} />
+                  <TournamentCard key={tournament.id} {...tournament} onJoinSuccess={refetch} />
                 ))}
               </div>
             )}
@@ -192,7 +192,7 @@ const TournamentList = () => {
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {finishedTournaments.map((tournament) => (
-                  <TournamentCard key={tournament.id} {...tournament} />
+                  <TournamentCard key={tournament.id} {...tournament} onJoinSuccess={refetch} />
                 ))}
               </div>
             )}

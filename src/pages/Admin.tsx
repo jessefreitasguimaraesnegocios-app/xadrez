@@ -48,6 +48,7 @@ type TournamentTemplate = {
   max_participants: number;
   entry_fee: number;
   platform_fee_pct: number;
+  prize_pool?: number;
   time_control: string;
   times_per_day: number;
   time_slots: string[];
@@ -84,6 +85,7 @@ const Admin = () => {
   const [formMaxParticipants, setFormMaxParticipants] = useState(32);
   const [formEntryFee, setFormEntryFee] = useState("0");
   const [formPlatformFeePct, setFormPlatformFeePct] = useState("10");
+  const [formPrizePool, setFormPrizePool] = useState("0");
   const [formTimeControl, setFormTimeControl] = useState("10+0");
   const [formTimesPerDay, setFormTimesPerDay] = useState(1);
   const [formTimeSlots, setFormTimeSlots] = useState("20:00");
@@ -152,7 +154,7 @@ const Admin = () => {
       toast({ variant: "destructive", title: "Erro ao gerar torneios", description: data?.error ?? error?.message });
       return;
     }
-    toast({ title: "Torneios gerados", description: `${data?.generated ?? 0} torneio(s) criado(s) para os próximos ${generateDays} dias.` });
+    toast({ title: "Torneios gerados", description: `${data?.generated ?? 0} torneio(s) criado(s). Eles já aparecem na aba Torneios (menu lateral) para os jogadores se inscreverem.` });
     fetchTemplates();
     window.dispatchEvent(new Event("tournaments-generated"));
   };
@@ -165,6 +167,7 @@ const Admin = () => {
     setFormMaxParticipants(32);
     setFormEntryFee("0");
     setFormPlatformFeePct("10");
+    setFormPrizePool("0");
     setFormTimeControl("10+0");
     setFormTimesPerDay(1);
     setFormTimeSlots("20:00");
@@ -181,6 +184,7 @@ const Admin = () => {
     setFormMaxParticipants(t.max_participants);
     setFormEntryFee(String(t.entry_fee));
     setFormPlatformFeePct(String(t.platform_fee_pct));
+    setFormPrizePool(String(t.prize_pool ?? 0));
     setFormTimeControl(t.time_control);
     setFormTimesPerDay(t.times_per_day);
     setFormTimeSlots(Array.isArray(t.time_slots) ? t.time_slots.join(", ") : "20:00");
@@ -202,6 +206,7 @@ const Admin = () => {
       max_participants: formMaxParticipants,
       entry_fee: parseFloat(formEntryFee) || 0,
       platform_fee_pct: parseFloat(formPlatformFeePct) || 10,
+      prize_pool: parseFloat(formPrizePool) || 0,
       time_control: formTimeControl,
       times_per_day: formTimesPerDay,
       time_slots: slots,
@@ -362,7 +367,7 @@ const Admin = () => {
                 <CardHeader>
                   <CardTitle>Gerar torneios automaticamente</CardTitle>
                   <CardDescription>
-                    Use os templates abaixo e gere torneios para os próximos dias. Cada template ativo será usado nos horários configurados.
+                    Os templates abaixo <strong>não aparecem</strong> para os jogadores. É preciso clicar em &quot;Gerar torneios&quot; para criar os torneios que aparecem na aba <strong>Torneios</strong> (menu lateral). Cada template ativo será usado nos horários configurados.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -511,6 +516,17 @@ const Admin = () => {
                   placeholder="10"
                 />
               </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Valor do prêmio (R$)</Label>
+              <Input
+                type="number"
+                min={0}
+                step={0.01}
+                value={formPrizePool}
+                onChange={(e) => setFormPrizePool(e.target.value)}
+                placeholder="0"
+              />
             </div>
             <div className="grid gap-2">
               <Label>Controle de tempo</Label>

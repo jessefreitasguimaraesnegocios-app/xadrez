@@ -16,6 +16,7 @@ type TemplateRow = {
   max_participants: number;
   entry_fee: number;
   platform_fee_pct: number;
+  prize_pool?: number;
   time_control: string;
   times_per_day: number;
   time_slots: string[];
@@ -95,6 +96,7 @@ Deno.serve(async (req: Request) => {
         max_participants = 32,
         entry_fee = 0,
         platform_fee_pct = 10,
+        prize_pool = 0,
         time_control = "10+0",
         times_per_day = 1,
         time_slots = ["20:00"],
@@ -116,6 +118,7 @@ Deno.serve(async (req: Request) => {
           max_participants: Math.max(2, Math.min(256, Number(max_participants) || 32)),
           entry_fee: Math.max(0, Number(entry_fee) || 0),
           platform_fee_pct: Math.max(0, Math.min(100, Number(platform_fee_pct) ?? 10)),
+          prize_pool: Math.max(0, Number(prize_pool) || 0),
           time_control: String(time_control || "10+0").trim(),
           times_per_day: Math.max(1, Math.min(24, Number(times_per_day) || 1)),
           time_slots: Array.isArray(time_slots) ? time_slots.map(String) : ["20:00"],
@@ -152,6 +155,7 @@ Deno.serve(async (req: Request) => {
       if (body.max_participants !== undefined) updates.max_participants = body.max_participants;
       if (body.entry_fee !== undefined) updates.entry_fee = body.entry_fee;
       if (body.platform_fee_pct !== undefined) updates.platform_fee_pct = body.platform_fee_pct;
+      if (body.prize_pool !== undefined) updates.prize_pool = Math.max(0, Number(body.prize_pool) || 0);
       if (body.time_control !== undefined) updates.time_control = body.time_control;
       if (body.times_per_day !== undefined) updates.times_per_day = body.times_per_day;
       if (body.time_slots !== undefined) updates.time_slots = body.time_slots;
@@ -225,7 +229,7 @@ Deno.serve(async (req: Request) => {
             if (startsAt.getTime() < now.getTime() && d === 0) continue;
             const name = `${t.name} – ${dateStr} ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
             const entryFee = Number(t.entry_fee) ?? 0;
-            const prizePool = 0;
+            const prizePool = Math.max(0, Number(t.prize_pool) ?? 0);
             const { data: row, error: insErr } = await supabase
               .from("tournaments")
               .insert({
