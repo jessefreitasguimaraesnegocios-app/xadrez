@@ -46,3 +46,11 @@ verify_jwt = false
 [functions.finish-game]
 # JWT validado no código da função (auth.getUser()).
 verify_jwt = false
+
+[functions.admin-report]
+# JWT validado no código; apenas is_admin acessa.
+verify_jwt = false
+
+[functions.admin-tournaments]
+# JWT validado no código; apenas is_admin acessa.
+verify_jwt = false

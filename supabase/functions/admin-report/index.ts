@@ -58,8 +58,11 @@ Deno.serve(async (req: Request) => {
 
     const url = new URL(req.url);
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
-    const fromParam = body?.from ?? url.searchParams.get("from");
-    const toParam = body?.to ?? url.searchParams.get("to");
+    let fromParam = body?.from ?? url.searchParams.get("from");
+    let toParam = body?.to ?? url.searchParams.get("to");
+    if (typeof toParam === "string" && toParam.length === 10 && /^\d{4}-\d{2}-\d{2}$/.test(toParam)) {
+      toParam = `${toParam}T23:59:59.999Z`;
+    }
 
     let query = supabase
       .from("games")

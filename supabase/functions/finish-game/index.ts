@@ -158,49 +158,49 @@ Deno.serve(async (req: Request) => {
     const lossesBlack = pBlack ? pBlack.losses + (effectiveResult === "white_wins" ? 1 : 0) : 0;
     const drawsBlack = pBlack ? pBlack.draws + (effectiveResult === "draw" ? 1 : 0) : 0;
 
-    if (bet === 0 && pWhite?.elo_rating != null && pBlack?.elo_rating != null) {
+    let newEloW: number | null = null;
+    let newEloB: number | null = null;
+    if (pWhite?.elo_rating != null && pBlack?.elo_rating != null) {
       const K = 32;
       const eloW = Number(pWhite.elo_rating);
       const eloB = Number(pBlack.elo_rating);
       const expectedW = 1 / (1 + Math.pow(10, (eloB - eloW) / 400));
       const scoreW = effectiveResult === "white_wins" ? 1 : effectiveResult === "draw" ? 0.5 : 0;
       const scoreB = effectiveResult === "black_wins" ? 1 : effectiveResult === "draw" ? 0.5 : 0;
-      const newEloW = Math.max(100, Math.round(eloW + K * (scoreW - expectedW)));
-      const newEloB = Math.max(100, Math.round(eloB + K * (scoreB - (1 - expectedW))));
+      newEloW = Math.max(0, Math.round(eloW + K * (scoreW - expectedW)));
+      newEloB = Math.max(0, Math.round(eloB + K * (scoreB - (1 - expectedW))));
       if (userId === whiteId) eloChangeUser = newEloW - eloW;
       else if (userId === blackId) eloChangeUser = newEloB - eloB;
-      await supabase.from("profiles").update({
-        wins: winsWhite,
-        losses: lossesWhite,
-        draws: drawsWhite,
-        total_winnings: pWhite.total_winnings,
-        total_bet_amount: pWhite.total_bet_amount,
-        elo_rating: newEloW,
-      }).eq("user_id", whiteId);
-      await supabase.from("profiles").update({
-        wins: winsBlack,
-        losses: lossesBlack,
-        draws: drawsBlack,
-        total_winnings: pBlack.total_winnings,
-        total_bet_amount: pBlack.total_bet_amount,
-        elo_rating: newEloB,
-      }).eq("user_id", blackId);
-    } else {
-      if (pWhite) {
-        const totalWinnings = effectiveResult === "white_wins" && bet > 0
-          ? pWhite.total_winnings + Math.round(bet * 2 * (1 - HOUSE_CUT_PCT) * 100) / 100 - bet
-          : pWhite.total_winnings;
-        const totalBet = pWhite.total_bet_amount + (bet > 0 ? bet : 0);
-        await supabase.from("profiles").update({ wins: winsWhite, losses: lossesWhite, draws: drawsWhite, total_winnings: totalWinnings, total_bet_amount: totalBet }).eq("user_id", whiteId);
-      }
-      if (pBlack) {
-        const totalWinnings = effectiveResult === "black_wins" && bet > 0
-          ? pBlack.total_winnings + Math.round(bet * 2 * (1 - HOUSE_CUT_PCT) * 100) / 100 - bet
-          : pBlack.total_winnings;
-        const totalBet = pBlack.total_bet_amount + (bet > 0 ? bet : 0);
-        await supabase.from("profiles").update({ wins: winsBlack, losses: lossesBlack, draws: drawsBlack, total_winnings: totalWinnings, total_bet_amount: totalBet }).eq("user_id", blackId);
-      }
     }
+
+    const totalWinningsWhite = bet > 0 && pWhite
+      ? (effectiveResult === "white_wins" ? pWhite.total_winnings + Math.round(bet * 2 * (1 - HOUSE_CUT_PCT) * 100) / 100 - bet : pWhite.total_winnings)
+      : (pWhite?.total_winnings ?? 0);
+    const totalBetWhite = (pWhite?.total_bet_amount ?? 0) + (bet > 0 ? bet : 0);
+    const totalWinningsBlack = bet > 0 && pBlack
+      ? (effectiveResult === "black_wins" ? pBlack.total_winnings + Math.round(bet * 2 * (1 - HOUSE_CUT_PCT) * 100) / 100 - bet : pBlack.total_winnings)
+      : (pBlack?.total_winnings ?? 0);
+    const totalBetBlack = (pBlack?.total_bet_amount ?? 0) + (bet > 0 ? bet : 0);
+
+    const whiteUpdate: Record<string, unknown> = {
+      wins: winsWhite,
+      losses: lossesWhite,
+      draws: drawsWhite,
+      total_winnings: totalWinningsWhite,
+      total_bet_amount: totalBetWhite,
+    };
+    if (newEloW != null) whiteUpdate.elo_rating = newEloW;
+    await supabase.from("profiles").update(whiteUpdate).eq("user_id", whiteId);
+
+    const blackUpdate: Record<string, unknown> = {
+      wins: winsBlack,
+      losses: lossesBlack,
+      draws: drawsBlack,
+      total_winnings: totalWinningsBlack,
+      total_bet_amount: totalBetBlack,
+    };
+    if (newEloB != null) blackUpdate.elo_rating = newEloB;
+    await supabase.from("profiles").update(blackUpdate).eq("user_id", blackId);
 
     const bodyRes: { ok: boolean; result: string; eloChange?: number; amountWon?: number } = { ok: true, result: effectiveResult };
     if (eloChangeUser != null) bodyRes.eloChange = eloChangeUser;

@@ -129,13 +129,16 @@ export function useVoiceCall(remoteUserId: string | null) {
   useEffect(() => {
     if (!myId || !remoteUserId) return;
     const channelName = getChannelName(myId, remoteUserId);
-    const channel = supabase.channel(channelName);
-    channelRef.current = channel;
+    const channel = supabase.channel(channelName, {
+      config: { broadcast: { ack: true } },
+    });
+    let cancelled = false;
 
     channel
-      .on("broadcast", { event: VOICE_SIGNAL_EVENT }, async (payload: { payload: SignalPayload }) => {
-        const msg = payload?.payload;
-        if (!msg || msg.from !== remoteUserId) return;
+      .on("broadcast", { event: VOICE_SIGNAL_EVENT }, async (payload: unknown) => {
+        const raw = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
+        const msg = (raw?.payload ?? raw) as SignalPayload | undefined;
+        if (!msg || typeof msg !== "object" || msg.from !== remoteUserId) return;
 
         if (msg.type === "call-reject" || msg.type === "call-end") {
           cleanup();
@@ -165,17 +168,37 @@ export function useVoiceCall(remoteUserId: string | null) {
           }
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (!cancelled && status === "SUBSCRIBED") {
+          channelRef.current = channel;
+        }
+      });
 
     return () => {
+      cancelled = true;
       channel.unsubscribe();
       channelRef.current = null;
     };
   }, [myId, remoteUserId, cleanup, createPeerAsCaller, handleOffer]);
 
+  const waitForChannel = useCallback(async (maxMs: number): Promise<boolean> => {
+    const deadline = Date.now() + maxMs;
+    while (Date.now() < deadline) {
+      if (channelRef.current) return true;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return false;
+  }, []);
+
   const startCall = useCallback(async () => {
-    if (!myId || !remoteUserId || !channelRef.current) return;
+    if (!myId || !remoteUserId) return;
     setError(null);
+    if (!channelRef.current && !(await waitForChannel(3000))) {
+      setError("Conexão com o servidor não pronta. Abra o chat e tente novamente.");
+      return;
+    }
+    const channel = channelRef.current;
+    if (!channel) return;
     setStatus("calling");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -185,16 +208,27 @@ export function useVoiceCall(remoteUserId: string | null) {
       setStatus("idle");
       return;
     }
-    channelRef.current.send({
-      type: "broadcast",
-      event: VOICE_SIGNAL_EVENT,
-      payload: { type: "call-request", from: myId },
-    });
-  }, [myId, remoteUserId]);
+    try {
+      await channel.send({
+        type: "broadcast",
+        event: VOICE_SIGNAL_EVENT,
+        payload: { type: "call-request", from: myId },
+      });
+    } catch (err) {
+      setError("Falha ao enviar chamada. Peça à outra pessoa para abrir o chat com você e tente de novo.");
+      setStatus("idle");
+    }
+  }, [myId, remoteUserId, waitForChannel]);
 
   const acceptCall = useCallback(async () => {
-    if (!myId || !remoteUserId || !channelRef.current) return;
+    if (!myId || !remoteUserId) return;
     setError(null);
+    if (!channelRef.current && !(await waitForChannel(3000))) {
+      setError("Conexão não pronta. Tente recusar e peça para ligar de novo.");
+      return;
+    }
+    const channel = channelRef.current;
+    if (!channel) return;
     setStatus("connecting");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -204,12 +238,12 @@ export function useVoiceCall(remoteUserId: string | null) {
       setStatus("idle");
       return;
     }
-    channelRef.current.send({
+    channel.send({
       type: "broadcast",
       event: VOICE_SIGNAL_EVENT,
       payload: { type: "call-accept", from: myId },
     });
-  }, [myId, remoteUserId]);
+  }, [myId, remoteUserId, waitForChannel]);
 
   const rejectCall = useCallback(() => {
     if (channelRef.current && myId) {

@@ -73,7 +73,13 @@ const FriendChatPanel = ({ friend, onClose, className }: FriendChatPanelProps) =
           </Avatar>
           <span className="font-medium text-sm truncate">{displayName}</span>
           {callStatus === "idle" && (
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={startCall} title="Ligar (voz)">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={startCall}
+              title="Ligar (voz). A outra pessoa precisa estar com este chat aberto para receber."
+            >
               <Phone className="h-4 w-4" />
             </Button>
           )}
@@ -93,6 +99,11 @@ const FriendChatPanel = ({ friend, onClose, className }: FriendChatPanelProps) =
         </Avatar>
       }
     >
+      {callStatus === "idle" && (
+        <p className="px-2 py-1 text-xs text-muted-foreground text-center">
+          Para receber a ligação, {displayName} precisa estar com este chat aberto.
+        </p>
+      )}
       {callError && (
         <p className="px-2 py-1 text-xs text-destructive bg-destructive/10">{callError}</p>
       )}
