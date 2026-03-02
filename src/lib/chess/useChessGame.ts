@@ -278,6 +278,49 @@ export const useChessGame = (options?: UseChessGameOptions) => {
     setPromotionPending(null);
   }, []);
 
+  /**
+   * Tries to execute a move by piece type and destination square (e.g. voice command "knight b3").
+   * Finds the unique (or first) piece of current turn that can legally move to `to` and executes it.
+   * Returns true if a move was made, false if invalid or no matching move.
+   */
+  const tryMoveByVoice = useCallback((pieceType: PieceType, to: Square): boolean => {
+    const state = gameStateRef.current;
+    if (state.isCheckmate || state.isStalemate) return false;
+    if (botDifficulty && state.currentTurn !== playerColor) return false;
+
+    const board = state.board;
+    const candidates: { from: Square }[] = [];
+
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const from = { row, col };
+        const piece = getPieceAt(board, from);
+        if (!piece || piece.color !== state.currentTurn || piece.type !== pieceType) continue;
+        const moves = getLegalMoves(
+          board,
+          from,
+          state.castlingRights,
+          state.enPassantTarget
+        );
+        const canGo = moves.some(m => m.row === to.row && m.col === to.col);
+        if (canGo) candidates.push({ from });
+      }
+    }
+
+    if (candidates.length === 0) return false;
+    const { from } = candidates[0];
+    const piece = getPieceAt(state.board, from);
+    if (piece?.type === 'pawn') {
+      const promotionRow = piece.color === 'white' ? 0 : 7;
+      if (to.row === promotionRow) {
+        setPromotionPending({ from, to });
+        return true;
+      }
+    }
+    executeMove(from, to);
+    return true;
+  }, [botDifficulty, playerColor, executeMove]);
+
   return {
     gameState,
     selectedSquare,
@@ -287,5 +330,6 @@ export const useChessGame = (options?: UseChessGameOptions) => {
     handlePromotion,
     cancelPromotion,
     resetGame,
+    tryMoveByVoice,
   };
 };

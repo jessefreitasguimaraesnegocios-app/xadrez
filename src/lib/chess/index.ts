@@ -1,5 +1,7 @@
 export * from './types';
 export * from './moveValidation';
+export * from './notation';
+export * from './voiceCommandParser';
 export {
   createInitialState,
   serializeMove,

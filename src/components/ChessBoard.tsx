@@ -6,6 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RotateCcw } from "lucide-react";
 import { useAppearance } from "@/contexts/AppearanceContext";
+import { useEffect } from "react";
+
+export interface VoiceHandlerRef {
+  tryMoveByVoice: (pieceType: PieceType, to: Square) => boolean;
+}
 
 interface ChessBoardProps {
   size?: "sm" | "md" | "lg" | "xl";
@@ -26,9 +31,11 @@ interface ChessBoardProps {
   syncState?: GameState | null;
   /** Ao jogar em partida online, chama isto em vez de atualizar estado local. */
   onMove?: (move: Move) => void;
+  /** Ref preenchida com tryMoveByVoice para comandos de voz (GameView). */
+  voiceHandlerRef?: React.MutableRefObject<VoiceHandlerRef | null>;
 }
 
-const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botDifficulty = null, botPlayerColor, onTurnChange, onGameOver, onNewGame, onFirstMove, disabled = false, syncState, onMove }: ChessBoardProps) => {
+const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botDifficulty = null, botPlayerColor, onTurnChange, onGameOver, onNewGame, onFirstMove, disabled = false, syncState, onMove, voiceHandlerRef }: ChessBoardProps) => {
   const { boardTheme, pieceStyle } = useAppearance();
   const playerColor = botPlayerColor ?? "white";
   const flip = playerColor === "black";
@@ -41,6 +48,7 @@ const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botD
     handlePromotion,
     cancelPromotion,
     resetGame,
+    tryMoveByVoice,
   } = useChessGame({
     botDifficulty,
     playerColor,
@@ -51,6 +59,15 @@ const ChessBoard = ({ size = "md", fullscreen = false, showControls = true, botD
     syncState,
     onMove,
   });
+
+  useEffect(() => {
+    if (voiceHandlerRef) {
+      voiceHandlerRef.current = { tryMoveByVoice };
+      return () => {
+        voiceHandlerRef.current = null;
+      };
+    }
+  }, [voiceHandlerRef, tryMoveByVoice]);
 
   const handleNewGame = () => {
     resetGame();

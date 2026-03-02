@@ -6,12 +6,16 @@ import GameTimer from "./GameTimer";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Flag, RotateCcw, Bot, Maximize2, Minimize2, MessageCircle, Trophy } from "lucide-react";
+import { Flag, RotateCcw, Bot, Maximize2, Minimize2, MessageCircle, Trophy, Mic, MicOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useOnlineGame } from "@/hooks/useOnlineGame";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import type { BotDifficulty } from "@/lib/chess";
+import { parseVoiceCommand, VOICE_LANG_CODES } from "@/lib/chess/voiceCommandParser";
+import { notationToSquare } from "@/lib/chess/notation";
+import type { VoiceHandlerRef } from "./ChessBoard";
 import { cn } from "@/lib/utils";
 
 const BOT_LABELS: Record<BotDifficulty, string> = {
@@ -88,6 +92,56 @@ const GameView = ({
   const preGameTimeUpFired = useRef(false);
   const [showGameChat, setShowGameChat] = useState(false);
   const [gameResult, setGameResult] = useState<'win' | 'lose' | 'draw' | null>(null);
+
+  const voiceHandlerRef = useRef<VoiceHandlerRef | null>(null);
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceLang, setVoiceLangState] = useState(() => {
+    if (typeof window === "undefined") return "pt-BR";
+    return localStorage.getItem("chess.voiceLang") ?? "pt-BR";
+  });
+  const setVoiceLang = useCallback((lang: string) => {
+    setVoiceLangState(lang);
+    if (typeof window !== "undefined") localStorage.setItem("chess.voiceLang", lang);
+  }, []);
+
+  const handleVoiceResult = useCallback(
+    (transcript: string) => {
+      const parsed = parseVoiceCommand(transcript);
+      if (!parsed) {
+        toast({ variant: "destructive", title: "Comando não reconhecido", description: "Diga por exemplo: cavalo b3, dama d5" });
+        return;
+      }
+      const square = notationToSquare(parsed.square);
+      if (!square) {
+        toast({ variant: "destructive", title: "Casa inválida", description: `Use uma casa entre a1 e h8. Recebido: ${parsed.square}` });
+        return;
+      }
+      const ok = voiceHandlerRef.current?.tryMoveByVoice(parsed.pieceType, square);
+      if (!ok) {
+        toast({ variant: "destructive", title: "Jogada inválida", description: "Nenhuma peça pode fazer essa jogada." });
+      }
+    },
+    [toast]
+  );
+
+  const { isListening, start: startVoice, stop: stopVoice, isSupported: isVoiceSupported } = useSpeechRecognition({
+    lang: voiceLang,
+    onResult: handleVoiceResult,
+    enabled: voiceListening,
+    continuous: true,
+  });
+
+  const toggleVoice = useCallback(() => {
+    if (!isVoiceSupported) {
+      toast({ variant: "destructive", title: "Microfone não suportado", description: "Use Chrome ou Edge para comandos de voz." });
+      return;
+    }
+    setVoiceListening((v) => {
+      if (v) stopVoice();
+      else startVoice();
+      return !v;
+    });
+  }, [isVoiceSupported, startVoice, stopVoice, toast]);
 
   const opponentLabel =
     isBotGame && botDifficulty
@@ -374,6 +428,7 @@ const GameView = ({
             disabled={isGameOver || (isOnlineGame ? !isMyTurn || !!onlineGameState?.isCheckmate || !!onlineGameState?.isStalemate : false)}
             syncState={isOnlineGame ? onlineGameState ?? null : undefined}
             onMove={isOnlineGame ? makeMove : undefined}
+            voiceHandlerRef={voiceHandlerRef}
           />
           {isGameOver && gameResult && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -478,6 +533,40 @@ const GameView = ({
               <MessageCircle className="w-4 h-4" />
               Chat
             </Button>
+          )}
+          {/* Comando de voz: botão discreto + idioma */}
+          <div className="flex items-center gap-1 shrink-0">
+            <Button
+              variant="outline"
+              size="icon"
+              className={cn("shrink-0", isListening && "ring-2 ring-primary")}
+              onClick={toggleVoice}
+              disabled={!isVoiceSupported || isGameOver}
+              title={isVoiceSupported ? (isListening ? "Desativar microfone" : "Comando de voz") : "Microfone não suportado"}
+              aria-label={isListening ? "Desativar comando de voz" : "Ativar comando de voz"}
+            >
+              {isListening ? <Mic className="w-4 h-4 text-primary" /> : <MicOff className="w-4 h-4" />}
+            </Button>
+            {isVoiceSupported && (
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                value={voiceLang}
+                onChange={(e) => setVoiceLang(e.target.value)}
+                title="Idioma do reconhecimento de voz"
+                aria-label="Idioma do reconhecimento de voz"
+              >
+                {Object.entries(VOICE_LANG_CODES).map(([code, label]) => (
+                  <option key={code} value={code}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          {isListening && (
+            <span className="text-xs text-muted-foreground self-center animate-pulse" aria-live="polite">
+              Ouvindo…
+            </span>
           )}
           <Button
             variant="secondary"
