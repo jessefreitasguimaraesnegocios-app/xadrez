@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getNextRandomColor } from "@/lib/randomColor";
 import { invokeEdgeFunction } from "@/lib/edgeFunctionAuth";
+import { withRetry, isRetryableError, SUPABASE_STAGGER } from "@/lib/supabaseRetry";
 import { useAuth } from "./useAuth";
 import { useToast } from "./use-toast";
 
@@ -32,41 +33,53 @@ export function useGameInvites() {
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [decliningId, setDecliningId] = useState<string | null>(null);
 
-  const fetchReceivedPending = useCallback(async (userId: string) => {
-    const { data: invites, error: invErr } = await supabase
-      .from("game_invites")
-      .select("id, from_user_id, to_user_id, bet_amount, time_control, status, created_at")
-      .eq("to_user_id", userId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false });
+  const fetchReceivedPending = useCallback(async (userId: string, options?: { retryAndStagger?: boolean }) => {
+    const run = async () => {
+      const { data: invites, error: invErr } = await supabase
+        .from("game_invites")
+        .select("id, from_user_id, to_user_id, bet_amount, time_control, status, created_at")
+        .eq("to_user_id", userId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
 
-    if (invErr) {
-      setReceivedPending([]);
-      return;
+      if (invErr) {
+        if (options?.retryAndStagger && isRetryableError(invErr)) throw invErr;
+        setReceivedPending([]);
+        return;
+      }
+      if (!invites?.length) {
+        setReceivedPending([]);
+        return;
+      }
+
+      const fromIds = [...new Set((invites as GameInviteRow[]).map((i) => i.from_user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, username, display_name, avatar_url")
+        .in("user_id", fromIds);
+
+      const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
+      setReceivedPending(
+        (invites as GameInviteRow[]).map((inv) => {
+          const p = profileMap.get(inv.from_user_id);
+          return {
+            ...inv,
+            from_username: p?.username ?? "",
+            from_display_name: p?.display_name ?? null,
+            from_avatar_url: p?.avatar_url ?? null,
+          };
+        }) as GameInviteWithFrom[]
+      );
+    };
+    if (options?.retryAndStagger) {
+      try {
+        await withRetry(run, { initialDelayMs: SUPABASE_STAGGER.gameInvites });
+      } catch {
+        setReceivedPending([]);
+      }
+    } else {
+      await run();
     }
-    if (!invites?.length) {
-      setReceivedPending([]);
-      return;
-    }
-
-    const fromIds = [...new Set((invites as GameInviteRow[]).map((i) => i.from_user_id))];
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("user_id, username, display_name, avatar_url")
-      .in("user_id", fromIds);
-
-    const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
-    setReceivedPending(
-      (invites as GameInviteRow[]).map((inv) => {
-        const p = profileMap.get(inv.from_user_id);
-        return {
-          ...inv,
-          from_username: p?.username ?? "",
-          from_display_name: p?.display_name ?? null,
-          from_avatar_url: p?.avatar_url ?? null,
-        };
-      }) as GameInviteWithFrom[]
-    );
   }, []);
 
   useEffect(() => {
@@ -76,7 +89,7 @@ export function useGameInvites() {
       return;
     }
     setLoading(true);
-    fetchReceivedPending(user.id).finally(() => setLoading(false));
+    fetchReceivedPending(user.id, { retryAndStagger: true }).finally(() => setLoading(false));
 
     const channel = supabase
       .channel(`game-invites-${user.id}`)

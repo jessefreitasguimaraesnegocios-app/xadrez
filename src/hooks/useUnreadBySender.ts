@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { DIRECT_MESSAGES_READ_EVENT } from "./useUnreadDirectCount";
+import { withRetry, isRetryableError, SUPABASE_STAGGER } from "@/lib/supabaseRetry";
 
 /** Mapa sender_id -> quantidade de mensagens não lidas (recebidas por mim) */
 export function useUnreadBySender(): Record<string, number> {
@@ -9,32 +10,44 @@ export function useUnreadBySender(): Record<string, number> {
   const myId = user?.id ?? null;
   const [bySender, setBySender] = useState<Record<string, number>>({});
 
-  const fetchCounts = useCallback(async () => {
+  const fetchCounts = useCallback(async (options?: { retryAndStagger?: boolean }) => {
     if (!myId) {
       setBySender({});
       return;
     }
-    const { data, error } = await supabase
-      .from("direct_messages")
-      .select("sender_id")
-      .eq("receiver_id", myId)
-      .is("read_at", null);
+    const run = async () => {
+      const { data, error } = await supabase
+        .from("direct_messages")
+        .select("sender_id")
+        .eq("receiver_id", myId)
+        .is("read_at", null);
 
-    if (error) {
-      setBySender({});
-      return;
-    }
+      if (error) {
+        if (options?.retryAndStagger && isRetryableError(error)) throw error;
+        setBySender({});
+        return;
+      }
 
-    const counts: Record<string, number> = {};
-    for (const row of data ?? []) {
-      const id = row.sender_id as string;
-      counts[id] = (counts[id] ?? 0) + 1;
+      const counts: Record<string, number> = {};
+      for (const row of data ?? []) {
+        const id = row.sender_id as string;
+        counts[id] = (counts[id] ?? 0) + 1;
+      }
+      setBySender(counts);
+    };
+    if (options?.retryAndStagger) {
+      try {
+        await withRetry(run, { initialDelayMs: SUPABASE_STAGGER.unreadBySender });
+      } catch {
+        setBySender({});
+      }
+    } else {
+      await run();
     }
-    setBySender(counts);
   }, [myId]);
 
   useEffect(() => {
-    fetchCounts();
+    fetchCounts({ retryAndStagger: true });
   }, [fetchCounts]);
 
   useEffect(() => {

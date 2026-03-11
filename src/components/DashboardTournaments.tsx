@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { withRetry, isRetryableError, SUPABASE_STAGGER } from "@/lib/supabaseRetry";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,37 +43,52 @@ const DashboardTournaments = () => {
 
   useEffect(() => {
     const load = async () => {
-      const { data: rows, error } = await supabase
-        .from("tournaments")
-        .select("id, name, format, status, max_participants, entry_fee, prize_pool, time_control, starts_at")
-        .in("status", ["upcoming", "in_progress"])
-        .order("starts_at", { ascending: true })
-        .limit(2);
+      const run = async () => {
+        const { data: rows, error } = await supabase
+          .from("tournaments")
+          .select("id, name, format, status, max_participants, entry_fee, prize_pool, time_control, starts_at")
+          .in("status", ["upcoming", "in_progress"])
+          .order("starts_at", { ascending: true })
+          .limit(2);
 
-      if (error || !rows?.length) {
-        setTournaments([]);
+        if (error) {
+          if (isRetryableError(error)) throw error;
+          setTournaments([]);
+          setLoading(false);
+          return;
+        }
+        if (!rows?.length) {
+          setTournaments([]);
+          setLoading(false);
+          return;
+        }
+
+        const ids = rows.map((r) => r.id);
+        const { data: participants, error: pErr } = await supabase
+          .from("tournament_participants")
+          .select("tournament_id")
+          .in("tournament_id", ids);
+
+        if (pErr && isRetryableError(pErr)) throw pErr;
+        const countByTournament: Record<string, number> = {};
+        ids.forEach((id) => (countByTournament[id] = 0));
+        (participants ?? []).forEach((p) => {
+          countByTournament[p.tournament_id] = (countByTournament[p.tournament_id] ?? 0) + 1;
+        });
+
+        setTournaments(
+          (rows as TournamentRow[]).map((r) => ({
+            ...r,
+            participants: countByTournament[r.id] ?? 0,
+          }))
+        );
         setLoading(false);
-        return;
+      };
+      try {
+        await withRetry(run, { initialDelayMs: SUPABASE_STAGGER.tournaments });
+      } catch {
+        setTournaments([]);
       }
-
-      const ids = rows.map((r) => r.id);
-      const { data: participants } = await supabase
-        .from("tournament_participants")
-        .select("tournament_id")
-        .in("tournament_id", ids);
-
-      const countByTournament: Record<string, number> = {};
-      ids.forEach((id) => (countByTournament[id] = 0));
-      (participants ?? []).forEach((p) => {
-        countByTournament[p.tournament_id] = (countByTournament[p.tournament_id] ?? 0) + 1;
-      });
-
-      setTournaments(
-        (rows as TournamentRow[]).map((r) => ({
-          ...r,
-          participants: countByTournament[r.id] ?? 0,
-        }))
-      );
       setLoading(false);
     };
     load();

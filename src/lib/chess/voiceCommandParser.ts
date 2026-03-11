@@ -41,6 +41,42 @@ const PIECE_KEYWORDS: Record<PieceType, string[]> = {
 
 const SQUARE_REGEX = /\b([a-h])\s*([1-8])\b/i;
 
+/**
+ * Normalizes transcript for file letters that are often misrecognized (especially D and E).
+ * Runs before the main square regex so "the 4", "de 4", "i 5", "e 5" etc. are recognized.
+ */
+function normalizeTranscriptForSquares(text: string): string {
+  let s = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  // Rank numbers often misheard: "for"->4, "ate"->8, "to"/"too"->2, "free"/"tree"->3, "sex"->6, "heaven"/"seven"->7
+  const rankWords: Record<string, string> = {
+    one: '1', two: '2', to: '2', too: '2', three: '3', tree: '3', free: '3', thrice: '3',
+    four: '4', for: '4', forr: '4', fore: '4',
+    five: '5', fife: '5',
+    six: '6', sex: '6', sicks: '6',
+    seven: '7', heaven: '7',
+    eight: '8', ate: '8',
+  };
+  for (const [word, digit] of Object.entries(rankWords)) {
+    const re = new RegExp(`\\b${word}\\b`, 'g');
+    s = s.replace(re, digit);
+  }
+  // D: "the", "de", "dê", "day", "di" + number -> d + number
+  s = s.replace(/\b(the|de|dê|day|di)\s*([1-8])\b/g, 'd$2');
+  // "d i 4" (d and i heard separately) -> d4
+  s = s.replace(/\bd\s*i\s*([1-8])\b/g, 'd$1');
+  // E: "ee", "he", "eh" + number -> e + number
+  s = s.replace(/\b(ee|he|eh)\s*([1-8])\b/g, 'e$2');
+  // "i" alone before number (e.g. "cavalo i 3" = knight e3) -> e + number
+  s = s.replace(/\bi\s*([1-8])\b/g, 'e$1');
+  // B: "be", "bee" + number
+  s = s.replace(/\b(be|bee)\s*([1-8])\b/g, 'b$2');
+  // C: "see", "sea", "ce" + number
+  s = s.replace(/\b(see|sea|ce)\s*([1-8])\b/g, 'c$2');
+  // G: "jee", "ge" + number
+  s = s.replace(/\b(jee|ge)\s*([1-8])\b/g, 'g$2');
+  return s;
+}
+
 export interface ParsedVoiceCommand {
   pieceType: PieceType;
   square: string;
@@ -52,7 +88,9 @@ export interface ParsedVoiceCommand {
  */
 export function parseVoiceCommand(transcript: string, _lang?: string): ParsedVoiceCommand | null {
   const normalized = transcript.trim().toLowerCase().replace(/\s+/g, ' ');
-  const squareMatch = normalized.match(SQUARE_REGEX);
+  const normalizedForSquare = normalizeTranscriptForSquares(transcript);
+  let squareMatch = normalizedForSquare.match(SQUARE_REGEX);
+  if (!squareMatch) squareMatch = normalized.match(SQUARE_REGEX);
   if (!squareMatch) return null;
   const square = `${squareMatch[1].toLowerCase()}${squareMatch[2]}`;
 

@@ -14,6 +14,7 @@ import { useOnlineGame } from "@/hooks/useOnlineGame";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import type { BotDifficulty } from "@/lib/chess";
 import { parseVoiceCommand, VOICE_LANG_CODES } from "@/lib/chess/voiceCommandParser";
+import { parseVoiceCommandWithAI } from "@/lib/voiceCommandAI";
 import { notationToSquare } from "@/lib/chess/notation";
 import type { VoiceHandlerRef } from "./ChessBoard";
 import { cn } from "@/lib/utils";
@@ -105,8 +106,16 @@ const GameView = ({
   }, []);
 
   const handleVoiceResult = useCallback(
-    (transcript: string) => {
-      const parsed = parseVoiceCommand(transcript);
+    async (transcript: string) => {
+      let parsed: { pieceType: import("@/lib/chess").PieceType; square: string } | null = null;
+
+      const aiResult = await parseVoiceCommandWithAI(transcript);
+      if (aiResult.ok) {
+        parsed = { pieceType: aiResult.pieceType, square: aiResult.square };
+      } else if (aiResult.fallback) {
+        parsed = parseVoiceCommand(transcript);
+      }
+
       if (!parsed) {
         toast({ variant: "destructive", title: "Comando não reconhecido", description: "Diga por exemplo: cavalo b3, dama d5" });
         return;

@@ -30,6 +30,7 @@ import { useMyTournaments } from "@/hooks/useMyTournaments";
 import { useUnreadBySender } from "@/hooks/useUnreadBySender";
 import { useUnreadDirectCount, DIRECT_MESSAGES_READ_EVENT } from "@/hooks/useUnreadDirectCount";
 import { supabase } from "@/integrations/supabase/client";
+import { withRetry, isRetryableError, SUPABASE_STAGGER } from "@/lib/supabaseRetry";
 import { cn } from "@/lib/utils";
 import FriendChatPanel from "@/components/FriendChatPanel";
 
@@ -164,7 +165,7 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
 
   const myUserId = user?.id ?? null;
 
-  const loadFriendsAndPending = useCallback(async () => {
+  const loadFriendsAndPending = useCallback(async (options?: { retryAndStagger?: boolean }) => {
     if (!myUserId) {
       setFriends([]);
       setPendingReceived([]);
@@ -172,62 +173,85 @@ const FriendsList = ({ onStartGame }: FriendsListProps) => {
       return;
     }
     setLoading(true);
-    const { data: friendships, error: fErr } = await supabase
-      .from("friendships")
-      .select("id, user_id, friend_id, status")
-      .or(`user_id.eq.${myUserId},friend_id.eq.${myUserId}`);
+    const run = async () => {
+      const { data: friendships, error: fErr } = await supabase
+        .from("friendships")
+        .select("id, user_id, friend_id, status")
+        .or(`user_id.eq.${myUserId},friend_id.eq.${myUserId}`);
 
-    if (fErr) {
-      toast({ variant: "destructive", title: "Erro ao carregar amigos", description: fErr.message });
+      if (fErr) {
+        if (options?.retryAndStagger && isRetryableError(fErr)) throw fErr;
+        toast({ variant: "destructive", title: "Erro ao carregar amigos", description: fErr.message });
+        setLoading(false);
+        return;
+      }
+
+      const accepted = (friendships ?? []).filter((f) => f.status === "accepted");
+      const pending = (friendships ?? []).filter((f) => f.status === "pending" && f.friend_id === myUserId);
+
+      const otherUserIds = [
+        ...new Set([
+          ...accepted.map((f) => (f.user_id === myUserId ? f.friend_id : f.user_id)),
+          ...pending.map((f) => f.user_id),
+        ]),
+      ];
+      if (otherUserIds.length === 0) {
+        setFriends([]);
+        setPendingReceived([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data: profiles, error: pErr } = await supabase
+        .from("profiles")
+        .select("user_id, username, display_name, avatar_url, elo_rating, is_online")
+        .in("user_id", otherUserIds);
+
+      if (pErr) {
+        if (options?.retryAndStagger && isRetryableError(pErr)) throw pErr;
+        toast({ variant: "destructive", title: "Erro ao carregar perfis", description: pErr.message });
+        setLoading(false);
+        return;
+      }
+      const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p as ProfileRow]));
+
+      setFriends(
+        accepted
+          .map((f) => {
+            const otherId = f.user_id === myUserId ? f.friend_id : f.user_id;
+            const pr = profileMap.get(otherId);
+            return pr ? { ...pr, friendshipId: f.id } : null;
+          })
+          .filter((x): x is ProfileRow & { friendshipId: string } => x != null)
+      );
+      setPendingReceived(
+        pending
+          .map((f) => {
+            const pr = profileMap.get(f.user_id);
+            return pr ? { ...pr, friendshipId: f.id } : null;
+          })
+          .filter((x): x is ProfileRow & { friendshipId: string } => x != null)
+      );
       setLoading(false);
-      return;
-    }
-
-    const accepted = (friendships ?? []).filter((f) => f.status === "accepted");
-    const pending = (friendships ?? []).filter((f) => f.status === "pending" && f.friend_id === myUserId);
-
-    const otherUserIds = [
-      ...new Set([
-        ...accepted.map((f) => (f.user_id === myUserId ? f.friend_id : f.user_id)),
-        ...pending.map((f) => f.user_id),
-      ]),
-    ];
-    if (otherUserIds.length === 0) {
-      setFriends([]);
-      setPendingReceived([]);
+    };
+    if (options?.retryAndStagger) {
+      try {
+        await withRetry(run, { initialDelayMs: SUPABASE_STAGGER.friendships });
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: "Erro ao carregar amigos",
+          description: e instanceof Error ? e.message : "Falha de conexão. Tente novamente.",
+        });
+      }
       setLoading(false);
-      return;
+    } else {
+      await run();
     }
-
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("user_id, username, display_name, avatar_url, elo_rating, is_online")
-      .in("user_id", otherUserIds);
-
-    const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p as ProfileRow]));
-
-    setFriends(
-      accepted
-        .map((f) => {
-          const otherId = f.user_id === myUserId ? f.friend_id : f.user_id;
-          const pr = profileMap.get(otherId);
-          return pr ? { ...pr, friendshipId: f.id } : null;
-        })
-        .filter((x): x is ProfileRow & { friendshipId: string } => x != null)
-    );
-    setPendingReceived(
-      pending
-        .map((f) => {
-          const pr = profileMap.get(f.user_id);
-          return pr ? { ...pr, friendshipId: f.id } : null;
-        })
-        .filter((x): x is ProfileRow & { friendshipId: string } => x != null)
-    );
-    setLoading(false);
   }, [myUserId, toast]);
 
   useEffect(() => {
-    loadFriendsAndPending();
+    loadFriendsAndPending({ retryAndStagger: true });
   }, [loadFriendsAndPending]);
 
   useEffect(() => {

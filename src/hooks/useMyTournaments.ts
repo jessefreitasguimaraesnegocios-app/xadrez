@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { withRetry, isRetryableError, SUPABASE_STAGGER } from "@/lib/supabaseRetry";
 
 export type MyTournamentRow = {
   id: string;
@@ -23,47 +24,69 @@ export function useMyTournaments() {
   const [myTournaments, setMyTournaments] = useState<MyTournamentRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchMyTournaments = useCallback(async (userId: string) => {
-    const { data: participations, error: partErr } = await supabase
-      .from("tournament_participants")
-      .select("tournament_id")
-      .eq("user_id", userId);
+  const fetchMyTournaments = useCallback(async (userId: string, options?: { retryAndStagger?: boolean }) => {
+    const run = async () => {
+      const { data: participations, error: partErr } = await supabase
+        .from("tournament_participants")
+        .select("tournament_id")
+        .eq("user_id", userId);
 
-    if (partErr || !participations?.length) {
-      setMyTournaments([]);
-      return;
+      if (partErr) {
+        if (options?.retryAndStagger && isRetryableError(partErr)) throw partErr;
+        setMyTournaments([]);
+        return;
+      }
+      if (!participations?.length) {
+        setMyTournaments([]);
+        return;
+      }
+
+      const tournamentIds = participations.map((p) => p.tournament_id);
+      const { data: tournaments, error: tErr } = await supabase
+        .from("tournaments")
+        .select("id, name, format, status, max_participants, entry_fee, prize_pool, time_control, starts_at, description")
+        .in("id", tournamentIds)
+        .in("status", ["upcoming", "in_progress"])
+        .order("starts_at", { ascending: true });
+
+      if (tErr) {
+        if (options?.retryAndStagger && isRetryableError(tErr)) throw tErr;
+        setMyTournaments([]);
+        return;
+      }
+      if (!tournaments?.length) {
+        setMyTournaments([]);
+        return;
+      }
+
+      const { data: counts, error: cErr } = await supabase
+        .from("tournament_participants")
+        .select("tournament_id")
+        .in("tournament_id", tournamentIds);
+
+      if (cErr && options?.retryAndStagger && isRetryableError(cErr)) throw cErr;
+      const countByT: Record<string, number> = {};
+      tournamentIds.forEach((id) => (countByT[id] = 0));
+      (counts ?? []).forEach((c) => {
+        countByT[c.tournament_id] = (countByT[c.tournament_id] ?? 0) + 1;
+      });
+
+      setMyTournaments(
+        (tournaments as Omit<MyTournamentRow, "participants">[]).map((t) => ({
+          ...t,
+          participants: countByT[t.id] ?? 0,
+        }))
+      );
+    };
+    if (options?.retryAndStagger) {
+      try {
+        await withRetry(run, { initialDelayMs: SUPABASE_STAGGER.myTournaments });
+      } catch {
+        setMyTournaments([]);
+      }
+    } else {
+      await run();
     }
-
-    const tournamentIds = participations.map((p) => p.tournament_id);
-    const { data: tournaments, error: tErr } = await supabase
-      .from("tournaments")
-      .select("id, name, format, status, max_participants, entry_fee, prize_pool, time_control, starts_at, description")
-      .in("id", tournamentIds)
-      .in("status", ["upcoming", "in_progress"])
-      .order("starts_at", { ascending: true });
-
-    if (tErr || !tournaments?.length) {
-      setMyTournaments([]);
-      return;
-    }
-
-    const { data: counts } = await supabase
-      .from("tournament_participants")
-      .select("tournament_id")
-      .in("tournament_id", tournamentIds);
-
-    const countByT: Record<string, number> = {};
-    tournamentIds.forEach((id) => (countByT[id] = 0));
-    (counts ?? []).forEach((c) => {
-      countByT[c.tournament_id] = (countByT[c.tournament_id] ?? 0) + 1;
-    });
-
-    setMyTournaments(
-      (tournaments as Omit<MyTournamentRow, "participants">[]).map((t) => ({
-        ...t,
-        participants: countByT[t.id] ?? 0,
-      }))
-    );
   }, []);
 
   useEffect(() => {
@@ -73,7 +96,7 @@ export function useMyTournaments() {
       return;
     }
     setLoading(true);
-    fetchMyTournaments(user.id).finally(() => setLoading(false));
+    fetchMyTournaments(user.id, { retryAndStagger: true }).finally(() => setLoading(false));
 
     const channel = supabase
       .channel("my-tournaments")

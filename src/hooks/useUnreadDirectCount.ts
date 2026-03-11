@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { withRetry, isRetryableError, SUPABASE_STAGGER } from "@/lib/supabaseRetry";
 
 export const DIRECT_MESSAGES_READ_EVENT = "direct-messages-marked-read";
 /** Disparado quando a aba Amigos é aberta (para refetch do count). */
@@ -11,25 +12,37 @@ export function useUnreadDirectCount() {
   const myId = user?.id ?? null;
   const [count, setCount] = useState(0);
 
-  const fetchCount = useCallback(async () => {
+  const fetchCount = useCallback(async (options?: { retryAndStagger?: boolean }) => {
     if (!myId) {
       setCount(0);
       return;
     }
-    const { count: n, error } = await supabase
-      .from("direct_messages")
-      .select("id", { count: "exact", head: true })
-      .eq("receiver_id", myId)
-      .is("read_at", null);
-    if (error) {
-      setCount(0);
-      return;
+    const run = async () => {
+      const { count: n, error } = await supabase
+        .from("direct_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("receiver_id", myId)
+        .is("read_at", null);
+      if (error) {
+        if (options?.retryAndStagger && isRetryableError(error)) throw error;
+        setCount(0);
+        return;
+      }
+      setCount(n ?? 0);
+    };
+    if (options?.retryAndStagger) {
+      try {
+        await withRetry(run, { initialDelayMs: SUPABASE_STAGGER.unreadDirectCount });
+      } catch {
+        setCount(0);
+      }
+    } else {
+      await run();
     }
-    setCount(n ?? 0);
   }, [myId]);
 
   useEffect(() => {
-    fetchCount();
+    fetchCount({ retryAndStagger: true });
   }, [fetchCount]);
 
   useEffect(() => {
